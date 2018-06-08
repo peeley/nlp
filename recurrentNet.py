@@ -9,8 +9,8 @@ class RNN(nn.Module):
         self.i2o = nn.Linear(dataUtils.n_letters + 256, dataUtils.n_letters)
         self.dropout = nn.Dropout(.1)
         self.softmax = nn.LogSoftmax(dim = 0)
-        self.epochs = 1
-        self.lr = .001
+        self.epochs = 5
+        self.lr = .0005
 
     def forward(self, input, hidden):
         combined = torch.cat((input, hidden), 0)
@@ -22,6 +22,7 @@ class RNN(nn.Module):
 
     def train(self, input, target):
         loss_fn = nn.NLLLoss()
+        optim = torch.optim.SGD(self.parameters(), lr = self.lr, momentum = .9)
         hidden = torch.zeros(256)
         self.zero_grad()
         loss = 0
@@ -33,6 +34,5 @@ class RNN(nn.Module):
             if torch.argmax(output) != len(dataUtils.all_letters) :
                 outputString += dataUtils.all_letters[torch.argmax(output)]
         loss.backward()
-        for p in self.parameters():
-            p.data.add_(-self.lr, p.grad.data)
-        return outputString, loss
+        optim.step()
+        return outputString, (loss / input.size(0))

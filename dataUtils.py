@@ -6,33 +6,22 @@ n_letters = len(all_letters) + 1
 
 def constructJoke():
     jokesFrame = pd.read_json('data/jokes/reddit_jokes.json')
-    jokesFrame['fullJoke'] = jokesFrame['title'].map(str) + ' ' + jokesFrame['body'] + '>'
-    jokesFrame['fullJoke'] = [unicodeToAscii(line) for line in jokesFrame['fullJoke']]
-    jokesFrame['fullJoke'] = jokesFrame['fullJoke'].str.lower()
-    filter = (jokesFrame['fullJoke'].str.len() <= 50)
-    jokesFrame = jokesFrame.loc[filter]
-    print(jokesFrame['fullJoke'])
-    return jokesFrame['fullJoke']
+    jokesFrame['fullJoke'] = jokesFrame['title'].map(str) + ' ' + jokesFrame['body']
+    stupidFrame = pd.read_json('data/jokes/stupidstuff.json')
+    stupidFrame = stupidFrame.loc[stupidFrame['category'].str.contains('Joke') & stupidFrame['rating'] >= 3.00]
+    wockaFrame = pd.read_json('data/jokes/wocka.json')
+    fullFrame = pd.DataFrame(pd.concat((jokesFrame['fullJoke'], stupidFrame['body'], wockaFrame['body'])))
+    fullFrame[0] = [unicodeToAscii(line) for line in fullFrame[0]]
+    filter = (fullFrame[0].str.len() <= 50)
+    fullFrame = fullFrame.loc[filter]
+    return fullFrame[0]
 
 def unicodeToAscii(s):
-    all_letters = string.ascii_letters + " .,;'-"
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
         and c in all_letters
     )
-
-def letterToTensor(letter):
-    alphabet = "abcdefghijklmnopqrstuvwxyz.'!? "
-    letterIndex = alphabet.index(letter)
-    oneHot = torch.zeros(len(alphabet))
-    oneHot[letterIndex] = 1
-    return oneHot
-
-def tensorToLetter(tensor):
-    alphabet = "abcdefghijklmnopqrstuvwxyz.'!? "
-    oneIndex = torch.argmax(tensor)
-    return oneIndex
 
 def inputTensor(line):
     tensor = torch.zeros(len(line), 1, n_letters)
