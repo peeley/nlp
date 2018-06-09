@@ -9,7 +9,7 @@ class RNN(nn.Module):
         self.i2o = nn.Linear(dataUtils.n_letters + 256, dataUtils.n_letters)
         self.dropout = nn.Dropout(.1)
         self.softmax = nn.LogSoftmax(dim = 0)
-        self.epochs = 5
+        self.epochs = 1
         self.lr = .0005
 
     def forward(self, input, hidden):

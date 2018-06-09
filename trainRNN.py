@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 net = recurrentNet.RNN()
 data = dataUtils.constructJoke()
-trainSet = data[:5000]
+trainSet = data[:3000]
 testSet = data[trainSet.shape[0]:trainSet.shape[0]+300]
 losses = []
 print(data.shape)
