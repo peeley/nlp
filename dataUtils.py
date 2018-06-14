@@ -5,12 +5,13 @@ all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters) + 1
 
 def constructJoke():
+    print('Importing data...')
     jokesFrame = pd.read_json('data/jokes/reddit_jokes.json')
     jokesFrame = jokesFrame.loc[jokesFrame['score'] > 1]
     jokesFrame['fullJoke'] = jokesFrame['title'].map(str) + ' ' + jokesFrame['body']
 
     stupidFrame = pd.read_json('data/jokes/stupidstuff.json')
-    stupidFrame = stupidFrame.loc[stupidFrame['category'].str.contains('Joke') & stupidFrame['rating'] >= 3.00]
+    stupidFrame = stupidFrame.loc[stupidFrame['category'].str.contains('Joke') & stupidFrame['rating'] > 1]
 
     wockaFrame = pd.read_json('data/jokes/wocka.json')
 
@@ -54,3 +55,4 @@ def word2idx(data):
 def prepareSequence(seq, toIX):
     idxs = [toIX[w] for w in seq]
     return torch.tensor(idxs, dtype = torch.long)
+
