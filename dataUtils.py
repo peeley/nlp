@@ -21,7 +21,12 @@ def constructJoke():
     fullFrame = fullFrame.loc[filter]
     fullFrame[0] = fullFrame[0].str.lower()
 
-    return fullFrame[0]
+    return jokesFrame['fullJoke']
+
+def constructTweets():
+    tweetFrame = pd.read_csv('data/tweets/data_backup.csv', engine ='python')
+    tweetFrame['Text'] = tweetFrame['Text'].str.lower()
+    return tweetFrame
 
 def unicodeToAscii(s):
     return ''.join(
