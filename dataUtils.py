@@ -17,16 +17,20 @@ def constructJoke():
 
     fullFrame = pd.DataFrame(pd.concat((jokesFrame['fullJoke'], stupidFrame['body'], wockaFrame['body'])))
     fullFrame[0] = [unicodeToAscii(line) for line in fullFrame[0]]
-    filter = (fullFrame[0].str.len() <= 50)
+    filter = (fullFrame[0].str.len() <= 100)
     fullFrame = fullFrame.loc[filter]
     fullFrame[0] = fullFrame[0].str.lower()
 
-    return jokesFrame['fullJoke']
+    return fullFrame[0]
 
 def constructTweets():
     tweetFrame = pd.read_csv('data/tweets/data_backup.csv', engine ='python')
     tweetFrame['Text'] = tweetFrame['Text'].str.lower()
     return tweetFrame
+
+def constructPokemon():
+    nameFrame = pd.read_csv('/mnt/9C4269244269047C/Programming/nlp/data/pokemon/Pokemon.csv')
+    return nameFrame['Name']
 
 def unicodeToAscii(s):
     return ''.join(
@@ -61,3 +65,7 @@ def prepareSequence(seq, toIX):
     idxs = [toIX[w] for w in seq]
     return torch.tensor(idxs, dtype = torch.long)
 
+def letterToTensor(letter):
+    tensor = torch.zeros(1, n_letters)
+    tensor[0][all_letters.find(letter)] = 1
+    return tensor

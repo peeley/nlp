@@ -28,6 +28,7 @@ class LSTMnet(nn.Module):
                 torch.zeros(1, 1, self.hiddenSize))
 
     def train(self, input, target):
+        self.zero_grad()
         loss_fn = nn.NLLLoss()
         optim = torch.optim.SGD(self.parameters(), lr = self.lr)
         output = self.forward(input)
