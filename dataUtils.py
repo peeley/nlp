@@ -2,7 +2,7 @@ import pandas as pd
 import unicodedata, string, torch
 
 all_letters = string.ascii_letters + " .,;'-"
-n_letters = len(all_letters) + 1
+n_letters = len(all_letters)
 
 def constructJoke():
     print('Importing data...')
@@ -30,6 +30,7 @@ def constructTweets():
 
 def constructPokemon():
     nameFrame = pd.read_csv('/mnt/9C4269244269047C/Programming/nlp/data/pokemon/Pokemon.csv')
+    nameFrame['Name'] = nameFrame['Name'].astype(str) + '>'
     return nameFrame['Name']
 
 def unicodeToAscii(s):
@@ -69,3 +70,4 @@ def letterToTensor(letter):
     tensor = torch.zeros(1, n_letters)
     tensor[0][all_letters.find(letter)] = 1
     return tensor
+
