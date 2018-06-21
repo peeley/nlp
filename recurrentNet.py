@@ -10,8 +10,8 @@ class RNN(nn.Module):
         self.i2o = nn.Linear(dataUtils.n_letters + self.hidden_size, dataUtils.n_letters)
         self.dropout = nn.Dropout(.1)
         self.softmax = nn.LogSoftmax(dim = 0)
-        self.epochs = 150
-        self.lr = 1e-3
+        self.epochs = 100
+        self.lr = 3e-3
 
     def forward(self, input, hidden):
         combined = torch.cat((input[0], hidden), 0)

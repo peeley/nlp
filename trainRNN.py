@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 net = recurrentNet.RNN()
 
 data = dataUtils.constructPokemon()
-trainSet = data[:152]
+trainSet = data[:]
 losses = []
 
 train = True

@@ -16,7 +16,6 @@ class LSTMnet(nn.Module):
         self.hidden = self.initHidden()
 
     def forward(self, input):
-        print('Forward pass')
         encode = self.embed(input)
         lstmOut, self.hidden = self.lstm(encode.view(len(input), 1, -1), self.hidden)
         out = self.out(lstmOut.view(len(input), -1))
@@ -30,10 +29,9 @@ class LSTMnet(nn.Module):
     def train(self, input, target):
         self.zero_grad()
         loss_fn = nn.NLLLoss()
-        optim = torch.optim.SGD(self.parameters(), lr = self.lr)
+        optim = torch.optim.SGD(self.parameters(), lr = self.lr, momentum = .9)
         output = self.forward(input)
         loss = loss_fn(output, target)
-        print('Loss: ', loss.item())
-        print('Backpropogating')
+        loss.backward()
         optim.step()
-
+        return loss
