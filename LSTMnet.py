@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy
 
 class LSTMnet(nn.Module):
-    def __init__(self, vocab = 0,  embedSize = 6, hiddenSize = 6, lr = 1e-3):
+    def __init__(self, vocab = 0,  embedSize = 9, hiddenSize = 9, lr = 1e-3):
         super(LSTMnet, self).__init__()
         self.embedSize = embedSize
         self.hiddenSize = hiddenSize
