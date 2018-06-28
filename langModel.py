@@ -1,3 +1,5 @@
+import torch
+
 class langModel:
     def __init__(self, name):
         self.name = name
@@ -25,11 +27,11 @@ def idxFromSentence(lang, sentence):
     return [lang.word2idx[word] for word in sentence.split(' ')]
 
 def tensorFromSentence(lang, sentence):
-    idx = idxFromSentence(sentence)
+    idx = idxFromSentence(lang, sentence)
     idx.append(lang.EOS)
     return torch.tensor(idx, dtype = torch.long).view(-1,1)
 
-def tensorFromPair(inputLang, outputLang, inputSentence, targetSentence):
+def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence):
     input = tensorFromSentence(inputLang, inputSentence)
     target = tensorFromSentence(outputLang, outputSentence)
     return input, target
