@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class encoder(nn.Module):
-    def __init__(self, inputSize, hiddenSize, lr = 1e-3):
+    def __init__(self, inputSize, hiddenSize = 256, lr = 1e-3):
         super(encoder, self).__init__()
         self.hiddenSize = hiddenSize
         self.inputSize = inputSize
@@ -19,7 +19,7 @@ class encoder(nn.Module):
         return torch.zeros(1, 1, self.hiddenSize)
 
 class decoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize, lr = 1e-3, dropoutProb = .1):
+    def __init__(self, outputSize, hiddenSize = 256, lr = 1e-3, dropoutProb = .1):
         super(decoder, self).__init__()
         self.hiddenSize = hiddenSize
         self.outputSize = outputSize

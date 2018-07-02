@@ -1,4 +1,4 @@
-import torch
+import torch, re
 
 class langModel:
     def __init__(self, name):
@@ -35,3 +35,9 @@ def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence):
     input = tensorFromSentence(inputLang, inputSentence)
     target = tensorFromSentence(outputLang, outputSentence)
     return input, target
+
+def normalize(s):
+    s = (s.lower().strip())
+    s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    return s
