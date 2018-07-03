@@ -10,7 +10,7 @@ corpus = pd.read_csv('/mnt/9C4269244269047C/Programming/nlp/data/spa-eng/spa.txt
 
 mask = ((corpus['eng'].str.split().apply(len) < maxWords) & (corpus['eng'].str.split().apply(len) > minWords) ) & ((corpus['spa'].str.split().apply(len) < maxWords) & (corpus['spa'].str.split().apply(len) > minWords))
 corpus = corpus[mask]
-trainingData = corpus.iloc[:5000]
+trainingData = corpus.iloc[:1000]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
@@ -18,10 +18,12 @@ for row in range(trainingData.shape[0]):
     eng.addSentence(langModel.normalize(trainingData.iloc[row]['eng']))
     spa.addSentence(langModel.normalize(trainingData.iloc[row]['spa']))
 
-train = True
+train = False
 
 if train == True:
-    epochs = 50
+    epochs = 20
+    recordIndex = 0
+    recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
@@ -81,7 +83,9 @@ if train == True:
             loss.backward()
             encoderOptim.step()
             decoderOptim.step()
-            losses.append(loss)
+            recordIndex += 1
+            if recordIndex % recordInterval == 0:
+                losses.append(loss)
             print('Loss: ', loss.item(), '\n')
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
@@ -93,19 +97,28 @@ if train == True:
     torch.save(decoder.state_dict(), 'decoder.pt')
     print('Models saved to disk.')
 
-encoder = seq2seq.encoder(eng.nWords, hiddenSize = 256, lr = .01)
-decoder = seq2seq.decoder(spa.nWords, hiddenSize = 256, lr = .01, dropoutProb = .1)
-encoder.load_state_dict(torch.load('encoder.pt'))
-decoder.load_state_dict(torch.load('decoder.pt'))
+else:
+    encoder = seq2seq.encoder(eng.nWords, hiddenSize = 256, lr = .01)
+    decoder = seq2seq.decoder(spa.nWords, hiddenSize = 256, lr = .01, dropoutProb = .1)
+    encoder.load_state_dict(torch.load('encoder.pt'))
+    decoder.load_state_dict(torch.load('decoder.pt'))
 
-sampleIndex = int(random.random()*trainingData.shape[0])
-testData = [trainingData.iloc[sampleIndex]['eng']]
-testTarget = trainingData.iloc[sampleIndex]['spa']
+sample = False
 
+if sample == True:
+    sampleIndex = int(random.random()*trainingData.shape[0])
+    testData = [trainingData.iloc[sampleIndex]['eng']]
+    testTarget = trainingData.iloc[sampleIndex]['spa']
+else:
+    testData = [langModel.normalize(input('Enter text to be translated: '))]
 for item in range(len(testData)):
     inputString = langModel.normalize(testData[item])
-    print('Test sentence: \t', inputString)
-    input = langModel.tensorFromSentence(eng, inputString)
+    print('\nTest sentence: \t', inputString)
+    try:
+        input = langModel.tensorFromSentence(eng, inputString)
+    except KeyError as e:
+        print('\nERROR: Word not in vocabulary, ', str(e))
+        break
     inputLength = input.shape[0]
     encoderHidden = encoder.initHidden()
     encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
@@ -126,5 +139,6 @@ for item in range(len(testData)):
         else:
             decodedWords.append(spa.idx2word[topi.item()])
         decoderInput = topi.squeeze().detach()
-    print('Target: \t', testTarget)
+    if sample == True:
+        print('Target: \t', testTarget)
     print('Translated: \t', ' '.join(decodedWords))
