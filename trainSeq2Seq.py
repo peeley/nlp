@@ -1,4 +1,4 @@
-import langModel, seq2seq, torch, random, datetime
+import langModel, seq2seq, torch, random, datetime, time
 import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 maxWords = 10
 minWords = 0
 
-corpus = pd.read_csv('/mnt/9C4269244269047C/Programming/nlp/data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
+corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
 
 mask = ((corpus['eng'].str.split().apply(len) < maxWords) & (corpus['eng'].str.split().apply(len) > minWords) ) & ((corpus['spa'].str.split().apply(len) < maxWords) & (corpus['spa'].str.split().apply(len) > minWords))
 corpus = corpus[mask]
-trainingData = corpus.iloc[:1000]
+trainingData = corpus.iloc[:5000]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
@@ -21,7 +21,7 @@ for row in range(trainingData.shape[0]):
 train = False
 
 if train == True:
-    epochs = 20
+    epochs = 3
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
@@ -103,42 +103,52 @@ else:
     encoder.load_state_dict(torch.load('encoder.pt'))
     decoder.load_state_dict(torch.load('decoder.pt'))
 
-sample = False
+
+def evaluate(input):
+    for item in range(len(input)):
+        inputString = langModel.normalize(input[item])
+        print('\nTest sentence: \t', inputString)
+        try:
+            input = langModel.tensorFromSentence(eng, inputString)
+        except KeyError as e:
+            print('\nERROR: Word not in vocabulary, ', str(e), '\n')
+            break
+        inputLength = input.shape[0]
+        encoderHidden = encoder.initHidden()
+        encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
+        for letter in range(inputLength):
+            encoderOutput, encoderHidden = encoder(input[letter], encoderHidden)
+            encoderOutputs[letter] = encoderOutput[0,0]
+
+        decoderInput = torch.tensor([[0]])
+        decoderHidden = encoderHidden
+        decodedWords = []
+        
+        for letter in range(maxWords):
+            decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
+            topv, topi = decoderOutput.data.topk(1)
+            if topi.item() == 1:
+                #decodedWords.append('<EOS>')
+                break
+            else:
+                decodedWords.append(spa.idx2word[topi.item()])
+            decoderInput = topi.squeeze().detach()
+        if sample == True:
+            print('Target: \t', testTarget)
+        print('Translated: \t', ' '.join(decodedWords),'\n')
+
+sample = True
 
 if sample == True:
-    sampleIndex = int(random.random()*trainingData.shape[0])
-    testData = [trainingData.iloc[sampleIndex]['eng']]
-    testTarget = trainingData.iloc[sampleIndex]['spa']
-else:
-    testData = [langModel.normalize(input('Enter text to be translated: '))]
-for item in range(len(testData)):
-    inputString = langModel.normalize(testData[item])
-    print('\nTest sentence: \t', inputString)
-    try:
-        input = langModel.tensorFromSentence(eng, inputString)
-    except KeyError as e:
-        print('\nERROR: Word not in vocabulary, ', str(e))
-        break
-    inputLength = input.shape[0]
-    encoderHidden = encoder.initHidden()
-    encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
-    for letter in range(inputLength):
-        encoderOutput, encoderHidden = encoder(input[letter], encoderHidden)
-        encoderOutputs[letter] = encoderOutput[0,0]
+    while True:
+        sampleIndex = int(random.random()*trainingData.shape[0])
+        testData = [trainingData.iloc[sampleIndex]['eng']]
+        testTarget = trainingData.iloc[sampleIndex]['spa']
+        evaluate(testData)
+        time.sleep(1)
 
-    decoderInput = torch.tensor([[0]])
-    decoderHidden = encoderHidden
-    decodedWords = []
-    
-    for letter in range(maxWords):
-        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
-        topv, topi = decoderOutput.data.topk(1)
-        if topi.item() == 1:
-            decodedWords.append('<EOS>')
-            break
-        else:
-            decodedWords.append(spa.idx2word[topi.item()])
-        decoderInput = topi.squeeze().detach()
-    if sample == True:
-        print('Target: \t', testTarget)
-    print('Translated: \t', ' '.join(decodedWords))
+else:
+    while True:
+        testData = [langModel.normalize(input('Enter text to be translated: '))]
+        evaluate(testData)
+
