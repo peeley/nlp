@@ -10,7 +10,7 @@ corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', 
 
 mask = ((corpus['eng'].str.split().apply(len) < maxWords) & (corpus['eng'].str.split().apply(len) > minWords) ) & ((corpus['spa'].str.split().apply(len) < maxWords) & (corpus['spa'].str.split().apply(len) > minWords))
 corpus = corpus[mask]
-trainingData = corpus.iloc[:5000]
+trainingData = corpus.iloc[:500]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
@@ -18,19 +18,23 @@ for row in range(trainingData.shape[0]):
     eng.addSentence(langModel.normalize(trainingData.iloc[row]['eng']))
     spa.addSentence(langModel.normalize(trainingData.iloc[row]['spa']))
 
-train = False
+glove = False
+train = True
 
 if train == True:
-    epochs = 3
+    epochs = 10
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords, hiddenSize = 256, lr = .01)
-    decoder = seq2seq.decoder(spa.nWords, hiddenSize = 256, lr = .01, dropoutProb = .1)
-
-    encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr)
+    encoder = seq2seq.encoder(eng.nWords, hiddenSize = 300, lr = .01)
+    decoder = seq2seq.decoder(spa.nWords, hiddenSize = 300, lr = .01, dropoutProb = .1)
+    if glove:
+        parameters = filter(lambda p: p.requires_grad, encoder.parameters())
+        encoderOptim = torch.optim.SGD(parameters, encoder.lr, glove)
+    else:
+        encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, glove)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr)
 
     losses = []
@@ -103,41 +107,41 @@ else:
     encoder.load_state_dict(torch.load('encoder.pt'))
     decoder.load_state_dict(torch.load('decoder.pt'))
 
-
 def evaluate(input):
-    for item in range(len(input)):
-        inputString = langModel.normalize(input[item])
-        print('\nTest sentence: \t', inputString)
-        try:
-            input = langModel.tensorFromSentence(eng, inputString)
-        except KeyError as e:
-            print('\nERROR: Word not in vocabulary, ', str(e), '\n')
-            break
-        inputLength = input.shape[0]
-        encoderHidden = encoder.initHidden()
-        encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
-        for letter in range(inputLength):
-            encoderOutput, encoderHidden = encoder(input[letter], encoderHidden)
-            encoderOutputs[letter] = encoderOutput[0,0]
-
-        decoderInput = torch.tensor([[0]])
-        decoderHidden = encoderHidden
-        decodedWords = []
-        
-        for letter in range(maxWords):
-            decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
-            topv, topi = decoderOutput.data.topk(1)
-            if topi.item() == 1:
-                #decodedWords.append('<EOS>')
+    with torch.no_grad():
+        for item in range(len(input)):
+            inputString = langModel.normalize(input[item])
+            print('\nTest sentence: \t', inputString)
+            try:
+                input = langModel.tensorFromSentence(eng, inputString)
+            except KeyError as e:
+                print('\nERROR: Word not in vocabulary, ', str(e), '\n')
                 break
-            else:
-                decodedWords.append(spa.idx2word[topi.item()])
-            decoderInput = topi.squeeze().detach()
-        if sample == True:
-            print('Target: \t', testTarget)
-        print('Translated: \t', ' '.join(decodedWords),'\n')
+            inputLength = input.shape[0]
+            encoderHidden = encoder.initHidden()
+            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
+            for letter in range(inputLength):
+                encoderOutput, encoderHidden = encoder(input[letter], encoderHidden)
+                encoderOutputs[letter] = encoderOutput[0,0]
 
-sample = True
+            decoderInput = torch.tensor([[0]])
+            decoderHidden = encoderHidden
+            decodedWords = []
+            
+            for letter in range(maxWords):
+                decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
+                topv, topi = decoderOutput.data.topk(1)
+                if topi.item() == 1:
+                    #decodedWords.append('<EOS>')
+                    break
+                else:
+                    decodedWords.append(spa.idx2word[topi.item()])
+                decoderInput = topi.squeeze().detach()
+            if sample == True:
+                print('Target: \t', testTarget)
+            print('Translated: \t', ' '.join(decodedWords),'\n')
+
+sample = False
 
 if sample == True:
     while True:
