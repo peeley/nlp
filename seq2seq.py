@@ -2,15 +2,12 @@ import torch, torchtext
 import torch.nn as nn
 
 class encoder(nn.Module):
-    def __init__(self, inputSize, hiddenSize = 300, lr = 1e-3, glove = False):
+    def __init__(self, inputSize, hiddenSize = 300, lr = 1e-3):
         super(encoder, self).__init__()
         self.hiddenSize = hiddenSize
         self.inputSize = inputSize
-        if glove ==False:
-            self.embedding = nn.Embedding(self.inputSize, self.hiddenSize)
-        else:
-            glove = torchtext.vocab.GloVe(name='6B', dim=300).vectors
-            self.embedding = nn.Embedding.from_pretrained(glove, freeze= True)
+        self.glove = torchtext.vocab.GloVe(name='6B', dim = 300)
+        self.embedding = nn.Embedding.from_pretrained(self.glove.vectors, freeze = True)
         self.gru = nn.GRU(self.hiddenSize, self.hiddenSize)
         self.lr = lr
 
