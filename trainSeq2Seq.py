@@ -7,29 +7,32 @@ maxWords = 10
 minWords = 0
 
 corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-trainingData = corpus.iloc[:500]
+trainingData = corpus.iloc[:10000]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
 
-eng.addEmbedding('data/embeddings/english/', 'glove.6B.300d.txt')
+#eng.addEmbedding('data/embeddings/english/', 'glove.6B.300d.txt')
 for row in range(trainingData.shape[0]):
+    eng.addSentence(langModel.normalize(trainingData.iloc[row]['eng']))
     spa.addSentence(langModel.normalize(trainingData.iloc[row]['spa']))
 
-train = False
+train = True
 
 if train == True:
-    epochs = 20
+    epochs = 15
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords, hiddenSize = 300, lr = .01)
-    decoder = seq2seq.decoder(spa.nWords, hiddenSize = 300, lr = .01, dropoutProb = .1)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
+    decoder = seq2seq.decoder(spa.nWords+1, hiddenSize = 300, lr = .01, dropoutProb = .1)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr)
+    encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
+    decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
 
     losses = []
 
@@ -40,11 +43,7 @@ if train == True:
             loss = 0
             inputString = langModel.expandContractions(langModel.normalize(trainingData.iloc[row]['eng']))
             targetString = langModel.normalize(trainingData.iloc[row]['spa'])
-            try:
-                inputTensor, targetTensor = langModel.tensorFromPair(eng, spa, inputString, targetString)
-            except KeyError as e:
-                print('Skipping item, word not in GloVe: ', e)
-                continue
+            inputTensor, targetTensor = langModel.tensorFromPair(eng, spa, inputString, targetString, True)
             encoderOptim.zero_grad()
             decoderOptim.zero_grad()
 
@@ -55,7 +54,7 @@ if train == True:
                 encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
             
-            decoderInput = torch.tensor([[0]])
+            decoderInput = torch.tensor([[spa.SOS]])
             decoderHidden = encoderHidden
 
             teacherForce = True if random.random() < teacherForceRatio else False
@@ -68,8 +67,8 @@ if train == True:
                     topv, topi = decoderOutput.topk(1)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = topi.squeeze().detach()
-                    if decoderInput.item() == 1:
-                        decodedString.append('<EOS>')
+                    if decoderInput.item() == spa.EOS:
+                        decodedString.append('/end/')
                         break
                     decodedString.append(spa.idx2word[decoderInput.item()])
             else:
@@ -85,10 +84,14 @@ if train == True:
             loss.backward()
             encoderOptim.step()
             decoderOptim.step()
+
             recordIndex += 1
             if recordIndex % recordInterval == 0:
                 losses.append(loss)
             print('Loss: ', loss.item(), '\n')
+        encoderScheduler.step(loss)
+        decoderScheduler.step(loss)
+
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
     print('Elapsed time: ', elapsedTime)
@@ -100,20 +103,18 @@ if train == True:
     print('Models saved to disk.')
 
 else:
-    encoder = seq2seq.encoder(eng.nWords, hiddenSize = 300, lr = .01)
-    decoder = seq2seq.decoder(spa.nWords, hiddenSize = 300, lr = .01, dropoutProb = .1)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
+    decoder = seq2seq.decoder(spa.nWords+1, hiddenSize = 300, lr = .01, dropoutProb = .1)
     encoder.load_state_dict(torch.load('encoder.pt'))
     decoder.load_state_dict(torch.load('decoder.pt'))
 
-def evaluate(inputSentence, testTarget = None):
+def evaluate(rawString, testTarget = None):
     with torch.no_grad():
-        for item in range(len(inputSentence)):
-            inputString = langModel.expandContractions(langModel.normalize(inputSentence[item]))
+        for item in range(len(rawString)):
+            inputString = langModel.expandContractions(langModel.normalize(rawString[item]))
             print('\nTest sentence: \t', inputString)
-            try:
-                inputSentence = langModel.tensorFromSentence(eng, inputString)
-            except KeyError as e:
-                print('\nERROR: Word not in vocabulary, ', str(e), '\n')
+            inputSentence = langModel.tensorFromSentence(eng, inputString, False)
+            if inputSentence[0] == -1:
                 break
             inputLength = len(inputSentence)
             encoderHidden = encoder.initHidden()
@@ -130,7 +131,7 @@ def evaluate(inputSentence, testTarget = None):
                 decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
                 topv, topi = decoderOutput.data.topk(1)
                 if topi.item() == 1:
-                    decodedWords.append('<EOS>')
+                    #decodedWords.append('/end/')
                     break
                 else:
                     decodedWords.append(spa.idx2word[topi.item()])
@@ -139,7 +140,7 @@ def evaluate(inputSentence, testTarget = None):
                 print('Target: \t', testTarget)
             print('Translated: \t', ' '.join(decodedWords),'\n')
 
-sample = True
+sample = False
 
 if sample == True:
     while True:

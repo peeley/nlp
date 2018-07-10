@@ -6,19 +6,24 @@ class langModel:
         self.name = name
         self.word2idx = {}
         self.word2count = {}
-        self.idx2word = {0: 'SOS', 1:'EOS'}
+        self.idx2word = {0: '/start/', 1:'/end/'}
+        self.idx2word = {}
         self.nWords = 2
         self.EOS = 1
         self.SOS = 0
-        self.glove = {}
+        self.glove = []
 
     def addEmbedding(self, filepath, filename):
         print('Opening saved embedding...')
         try:
-            self.word2idx = pickle.load(open(filepath+'word2idx.pkl', 'rb'))
+            word2idx = pickle.load(open(filepath+'word2idx.pkl', 'rb'))
+            glove = pickle.load(open(filepath+'glove.pkl', 'rb'))
+            self.word2idx = word2idx
+            self.glove = glove
+            print('Opened saved embedding.')
         except:
             with open(filepath+filename, 'rb') as f:
-                print('Embedding opened.')
+                print('No embedding found, creating new embedding.')
                 for l in f:
                         line = l.decode().split()
                         word = line[0]
@@ -29,12 +34,13 @@ class langModel:
                             self.word2idx[word] = self.nWords
                             self.idx2word[self.nWords] = word
                             vect = np.array(line[1:]).astype(np.float)
-                            self.glove[word] = vect
+                            self.glove.append(vect)
                             print('Word vector: ', vect, '\n')
                         else:
                             self.word2count[word] += 1
                             print('Duplicate word')
                 pickle.dump(self.word2idx, open(filepath+'word2idx.pkl', 'wb'))
+                pickle.dump(self.glove, open(filepath+'glove.pkl', 'wb'))
         print('Finished embedding!')
     
     def addSentence(self, string):
@@ -50,23 +56,34 @@ class langModel:
         else:
             self.word2count[word] += 1
 
-def idxFromSentence(lang, sentence):
-    return [lang.word2idx[word] for word in sentence.split(' ')]
+def idxFromSentence(lang, sentence, train):
+    indices = []
+    for word in sentence.split(' '):
+        try:
+            indices.append(lang.word2idx[word])
+        except KeyError as e:
+            if train:
+                indices.append(lang.nWords)
+            else:
+                print('ERROR - Word not in vocabulary: ', e, '\n')
+                return -1
+    return indices
 
-def tensorFromSentence(lang, sentence):
-    idx = idxFromSentence(lang, sentence)
+def tensorFromSentence(lang, sentence, train):
+    idx = idxFromSentence(lang, sentence, train)
+    if idx == -1:
+        return [-1]
     idx.append(lang.EOS)
     return torch.tensor(idx, dtype = torch.long).view(-1,1)
 
-def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence):
-    input = tensorFromSentence(inputLang, inputSentence)
-    target = tensorFromSentence(outputLang, outputSentence)
+def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, train):
+    input = tensorFromSentence(inputLang, inputSentence, train)
+    target = tensorFromSentence(outputLang, outputSentence, train)
     return input, target
 
 def normalize(s):
     s = (s.lower().strip())
     s = re.sub(r"([,.!?])", r" \1", s)
-    #s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
     return s
 
 cList = {
