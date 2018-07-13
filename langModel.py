@@ -1,4 +1,4 @@
-import torch, re, bcolz, pickle
+import torch, re, pickle
 import numpy as np
 
 class langModel:
