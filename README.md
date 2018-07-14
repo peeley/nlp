@@ -1,1 +1,1 @@
-# Data and machine learning algorithms for natural language processing implemented in PyTorch.
+#  Various algorithms and tools for natural language processing with PyTorch. 
