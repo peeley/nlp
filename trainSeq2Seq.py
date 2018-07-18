@@ -13,26 +13,31 @@ eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
 
 for row in range(trainingData.shape[0]):
-    eng.addSentence(langModel.normalize(trainingData.iloc[row]['eng']))
-    spa.addSentence(langModel.normalize(trainingData.iloc[row]['spa']))
+    eng.addSentence(langModel.normalize(corpus.iloc[row]['eng']))
+    spa.addSentence(langModel.normalize(corpus.iloc[row]['spa']))
 
-train = False
+train = True
+cuda = False
 
 if train == True:
-    epochs = 15
+    epochs = 20
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
-    decoder = seq2seq.decoder(spa.nWords+1, hiddenSize = 300, lr = .01, dropoutProb = .1)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 1024, lr = .01)
+    decoder = seq2seq.decoder(spa.nWords+1, hiddenSize = 1024, lr = .01, dropoutProb = .1)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
     decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
-
+    if torch.cuda.is_available():
+        device = torch.device('cuda:0')
+        encoder.to(device)
+        decoder.to(device)
+        cuda = True
     losses = []
 
     startTime = datetime.datetime.now()
@@ -43,26 +48,34 @@ if train == True:
             inputString = langModel.expandContractions(langModel.normalize(trainingData.iloc[row]['eng']))
             targetString = langModel.normalize(trainingData.iloc[row]['spa'])
             inputTensor, targetTensor = langModel.tensorFromPair(eng, spa, inputString, targetString, train)
+            if cuda:
+                inputTensor, targetTensor = inputTensor.to(device), targetTensor.to(device)
             encoderOptim.zero_grad()
             decoderOptim.zero_grad()
 
-            encoderHidden = encoder.initHidden()
+            encoderHidden = encoder.initHidden(cuda)
             encoderOutputs = torch.zeros(inputTensor.shape[0], encoder.hiddenSize)
+            if cuda:
+                encoderOutputs = encoderOutputs.to(device)
             print('Encoding sentence: \t', inputString)
             for inputLetter in range(inputTensor.shape[0]):
                 encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
             
             decoderInput = torch.tensor([[spa.SOS]])
+            if cuda:
+                decoderInput = decoderInput.to(device)
             decoderHidden = encoderHidden
 
             teacherForce = True if random.random() < teacherForceRatio else False
-            
+
             print('Target sentence: \t', targetString)
             decodedString = []
             if teacherForce:
                 for targetLetter in range(targetTensor.shape[0]):
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
+                    if cuda:
+                        decoderOutput = decoderOutput.to(device)
                     topv, topi = decoderOutput.topk(1)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = topi.squeeze().detach()
@@ -73,6 +86,8 @@ if train == True:
             else:
                 for targetLetter in range(targetTensor.shape[0]):
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
+                    if cuda:
+                        decoderOutput = decoderOutput.to(device)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = targetTensor[targetLetter]
                     if decoderInput.item() == 1:
@@ -100,4 +115,5 @@ if train == True:
     torch.save(encoder.state_dict(), 'encoder.pt')
     torch.save(decoder.state_dict(), 'decoder.pt')
     print('Models saved to disk.')
+
 

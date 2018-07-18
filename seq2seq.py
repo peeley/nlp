@@ -7,7 +7,7 @@ class encoder(nn.Module):
         self.hiddenSize = hiddenSize
         self.inputSize = inputSize
         self.embedding = nn.Embedding(self.inputSize, self.hiddenSize)
-        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, bidirectional = True)
+        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize)
         self.lr = lr
 
     def forward(self, input, hidden):
@@ -16,8 +16,11 @@ class encoder(nn.Module):
         output, hidden = self.lstm(embed, hidden)
         return output, hidden
 
-    def initHidden(self):
-        return (torch.zeros(1, 1, self.hiddenSize), torch.zeros(1, 1, self.hiddenSize))
+    def initHidden(self, cuda):
+        if cuda:
+            return (torch.zeros(1, 1, self.hiddenSize).cuda(), torch.zeros(1, 1, self.hiddenSize).cuda())
+        else:
+            return (torch.zeros(1, 1, self.hiddenSize), torch.zeros(1, 1, self.hiddenSize))
 
 class decoder(nn.Module):
     def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .1):
@@ -39,7 +42,9 @@ class decoder(nn.Module):
         output = self.softmax(output)
         return output, hidden
 
-    def initHidden(self):
+    def initHidden(self, cuda):
+        if cuda:
+            return (torch.zeros(1, 1, self.hiddenSize).cuda(), torch.zeros(1, 1, self.hiddenSize).cuda())
         return (torch.zeros(1, 1, self.hiddenSize), torch.zeros(1,1, self.hiddenSize))
 
 
