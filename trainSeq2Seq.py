@@ -4,21 +4,20 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 maxWords = 10
-minWords = 0
 
 corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-trainingData = corpus.iloc[:10000]
+trainingData = corpus.iloc[:500]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
 
-for row in range(trainingData.shape[0]):
+for row in range(corpus.shape[0]):
     eng.addSentence(langModel.normalize(corpus.iloc[row]['eng']))
     spa.addSentence(langModel.normalize(corpus.iloc[row]['spa']))
 
 train = True
 cuda = False
-
+hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
     epochs = 20
     recordIndex = 0
@@ -26,8 +25,8 @@ if train == True:
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 1024, lr = .01)
-    decoder = seq2seq.decoder(spa.nWords+1, hiddenSize = 1024, lr = .01, dropoutProb = .1)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = hiddenSizes['debug'], lr = .01)
+    decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['debug'], .01, .1, maxWords)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr)
@@ -36,8 +35,11 @@ if train == True:
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
         encoder.to(device)
+        parallelEncoder = nn.DataParallel(encoder)
+        parallelDecoder = nn.DataParallel(decoder)
         decoder.to(device)
         cuda = True
+        print('PROCESSING WITH CUDA DEVICE ', device)
     losses = []
 
     startTime = datetime.datetime.now()
@@ -54,12 +56,15 @@ if train == True:
             decoderOptim.zero_grad()
 
             encoderHidden = encoder.initHidden(cuda)
-            encoderOutputs = torch.zeros(inputTensor.shape[0], encoder.hiddenSize)
+            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
             if cuda:
                 encoderOutputs = encoderOutputs.to(device)
             print('Encoding sentence: \t', inputString)
             for inputLetter in range(inputTensor.shape[0]):
-                encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
+                if cuda:
+                    encoderOutput, encoderHidden = parallelEncoder(inputTensor[inputLetter], encoderHidden)
+                else:
+                    encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
             
             decoderInput = torch.tensor([[spa.SOS]])
@@ -73,7 +78,10 @@ if train == True:
             decodedString = []
             if teacherForce:
                 for targetLetter in range(targetTensor.shape[0]):
-                    decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
+                    if cuda:
+                        decoderOutput, decoderHidden, attn = parallelDecoder(decoderInput, decoderHidden, encoderOutputs)
+                    else:
+                        decoderOutput, decoderHidden, attn = decoder(decoderInput, decoderHidden, encoderOutputs)
                     if cuda:
                         decoderOutput = decoderOutput.to(device)
                     topv, topi = decoderOutput.topk(1)
@@ -85,9 +93,10 @@ if train == True:
                     decodedString.append(spa.idx2word[decoderInput.item()])
             else:
                 for targetLetter in range(targetTensor.shape[0]):
-                    decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
                     if cuda:
-                        decoderOutput = decoderOutput.to(device)
+                        decoderOutput, decoderHidden, attn = parallelDecoder(decoderInput, decoderHidden, encoderOutputs)
+                    else:
+                        decoderOutput, decoderHidden, attn = decoder(decoderInput, decoderHidden, encoderOutputs)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = targetTensor[targetLetter]
                     if decoderInput.item() == 1:

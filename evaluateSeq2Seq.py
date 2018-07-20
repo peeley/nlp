@@ -2,17 +2,16 @@ import torch, seq2seq, langModel
 import pandas as pd
 
 corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-trainingData = corpus.iloc[:10000]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
 
-for row in range(trainingData.shape[0]):
+for row in range(corpus.shape[0]):
     eng.addSentence(langModel.normalize(corpus.loc[row,'eng']))
     spa.addSentence(langModel.normalize(corpus.loc[row,'spa']))
 
-encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 1024, lr = .01)
-decoder = seq2seq.decoder(spa.nWords+1, hiddenSize = 1024, lr = .01, dropoutProb = .1)
+encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
+decoder = seq2seq.attnDecoder(spa.nWords+1, 300, .01, .1, 10)
 encoder.load_state_dict(torch.load('encoder.pt'))
 decoder.load_state_dict(torch.load('decoder.pt'))
 
