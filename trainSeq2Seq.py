@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 maxWords = 10
 
 corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-trainingData = corpus.iloc[:500]
+trainingData = corpus.iloc[:10000]
+vocab = corpus.shape[0]
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
 
-for row in range(corpus.shape[0]):
+for row in range(vocab):
     eng.addSentence(langModel.normalize(corpus.iloc[row]['eng']))
     spa.addSentence(langModel.normalize(corpus.iloc[row]['spa']))
 
@@ -19,24 +20,22 @@ train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 20
+    epochs = 7
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = hiddenSizes['debug'], lr = .01)
-    decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['debug'], .01, .1, maxWords)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = hiddenSizes['prod'], lr = 5e-3)
+    decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['prod'], 5e-3, .1, maxWords)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
-    encoderOptim = torch.optim.SGD(parameters, encoder.lr)
-    decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr)
+    encoderOptim = torch.optim.Adam(parameters, encoder.lr)
+    decoderOptim = torch.optim.Adam(decoder.parameters(), decoder.lr)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
     decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
         encoder.to(device)
-        parallelEncoder = nn.DataParallel(encoder)
-        parallelDecoder = nn.DataParallel(decoder)
         decoder.to(device)
         cuda = True
         print('PROCESSING WITH CUDA DEVICE ', device)
@@ -62,7 +61,7 @@ if train == True:
             print('Encoding sentence: \t', inputString)
             for inputLetter in range(inputTensor.shape[0]):
                 if cuda:
-                    encoderOutput, encoderHidden = parallelEncoder(inputTensor[inputLetter], encoderHidden)
+                    encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 else:
                     encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
@@ -79,9 +78,9 @@ if train == True:
             if teacherForce:
                 for targetLetter in range(targetTensor.shape[0]):
                     if cuda:
-                        decoderOutput, decoderHidden, attn = parallelDecoder(decoderInput, decoderHidden, encoderOutputs)
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     else:
-                        decoderOutput, decoderHidden, attn = decoder(decoderInput, decoderHidden, encoderOutputs)
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     if cuda:
                         decoderOutput = decoderOutput.to(device)
                     topv, topi = decoderOutput.topk(1)
@@ -94,9 +93,9 @@ if train == True:
             else:
                 for targetLetter in range(targetTensor.shape[0]):
                     if cuda:
-                        decoderOutput, decoderHidden, attn = parallelDecoder(decoderInput, decoderHidden, encoderOutputs)
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     else:
-                        decoderOutput, decoderHidden, attn = decoder(decoderInput, decoderHidden, encoderOutputs)
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = targetTensor[targetLetter]
                     if decoderInput.item() == 1:

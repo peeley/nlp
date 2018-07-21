@@ -10,8 +10,8 @@ for row in range(corpus.shape[0]):
     eng.addSentence(langModel.normalize(corpus.loc[row,'eng']))
     spa.addSentence(langModel.normalize(corpus.loc[row,'spa']))
 
-encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
-decoder = seq2seq.attnDecoder(spa.nWords+1, 300, .01, .1, 10)
+encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 1024, lr = .01)
+decoder = seq2seq.attnDecoder(spa.nWords+1, 1024, .01, .1, 10)
 encoder.load_state_dict(torch.load('encoder.pt'))
 decoder.load_state_dict(torch.load('decoder.pt'))
 
@@ -49,7 +49,7 @@ def evaluate(rawString, testTarget = None):
             decodedWords = []
             
             for letter in range(inputLength):
-                decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden)
+                decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                 topv, topi = decoderOutput.data.topk(1)
                 if topi.item() == 1:
                     break

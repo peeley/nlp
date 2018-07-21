@@ -75,7 +75,7 @@ class attnDecoder(nn.Module):
         output, hidden = self.lstm(output, hidden)
         output = nn.functional.log_softmax(self.out(output[0]), dim=1)
 
-        return output, hidden, attnWeights
+        return output, hidden
 
     def initHidden(self, cuda):
         if cuda:
