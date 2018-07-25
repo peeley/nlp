@@ -2,25 +2,27 @@ import torch, seq2seq, langModel
 import pandas as pd
 
 corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-
+vocab = 5000 
+maxWords = 10
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
 
-for row in range(corpus.shape[0]):
+for row in range(vocab):
     eng.addSentence(langModel.normalize(corpus.loc[row,'eng']))
     spa.addSentence(langModel.normalize(corpus.loc[row,'spa']))
 
-encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 1024, lr = .01)
-decoder = seq2seq.attnDecoder(spa.nWords+1, 1024, .01, .1, 10)
+encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
+decoder = seq2seq.attnDecoder(spa.nWords+1,  300, .01, .1, 10)
 encoder.load_state_dict(torch.load('encoder.pt'))
 decoder.load_state_dict(torch.load('decoder.pt'))
 
 train = False
-cuda = True
-if torch.cuda.is_available:
+cuda = False
+if torch.cuda.is_available():
     device = torch.device('cuda:0')
     encoder.to(device)
     decoder.to(device)
+    cuda = True
 
 def evaluate(rawString, testTarget = None):
     with torch.no_grad():
@@ -35,14 +37,14 @@ def evaluate(rawString, testTarget = None):
                     break
             inputLength = len(inputSentence)
             encoderHidden = encoder.initHidden(cuda)
-            encoderOutputs = torch.zeros(inputLength, encoder.hiddenSize)
+            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
             if cuda:
                 encoderOutpus = encoderOutputs.to(device)
             for word in range(inputLength):
                 encoderOutput, encoderHidden = encoder(inputSentence[word], encoderHidden)
                 encoderOutputs[word] = encoderOutput[0,0]
 
-            decoderInput = torch.tensor([[0]])
+            decoderInput = torch.tensor([[spa.SOS]])
             if cuda:
                 decoderInput = decoderInput.to(device)
             decoderHidden = encoderHidden

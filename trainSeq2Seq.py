@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 maxWords = 10
 
 corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-trainingData = corpus.iloc[:10000]
-vocab = corpus.shape[0]
+trainingData = corpus.iloc[:500]
+vocab = 5000
 
 eng = langModel.langModel('english')
 spa = langModel.langModel('spanish')
@@ -20,17 +20,17 @@ train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 7
+    epochs = 3
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = hiddenSizes['prod'], lr = 5e-3)
-    decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['prod'], 5e-3, .1, maxWords)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 3)
+    decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
-    encoderOptim = torch.optim.Adam(parameters, encoder.lr)
-    decoderOptim = torch.optim.Adam(decoder.parameters(), decoder.lr)
+    encoderOptim = torch.optim.SGD(parameters, encoder.lr, momentum = .9)
+    decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
     decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
     if torch.cuda.is_available():
@@ -51,13 +51,15 @@ if train == True:
             inputTensor, targetTensor = langModel.tensorFromPair(eng, spa, inputString, targetString, train)
             if cuda:
                 inputTensor, targetTensor = inputTensor.to(device), targetTensor.to(device)
+            
             encoderOptim.zero_grad()
             decoderOptim.zero_grad()
 
-            encoderHidden = encoder.initHidden(cuda)
-            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
+            encoderHidden = seq2seq.initHidden(cuda, encoder.hiddenSize, decoder.numLayers)
+            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize * 2)
             if cuda:
                 encoderOutputs = encoderOutputs.to(device)
+
             print('Encoding sentence: \t', inputString)
             for inputLetter in range(inputTensor.shape[0]):
                 if cuda:
