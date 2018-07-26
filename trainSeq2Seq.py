@@ -26,7 +26,7 @@ if train == True:
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 3)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 4)
     decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr, momentum = .9)
@@ -121,6 +121,7 @@ if train == True:
     print('Elapsed time: ', elapsedTime)
     plt.plot(losses)
     plt.show()
+    plt.savefig('results.png')
     print('Writing models to disk...')
     torch.save(encoder.state_dict(), 'encoder.pt')
     torch.save(decoder.state_dict(), 'decoder.pt')
