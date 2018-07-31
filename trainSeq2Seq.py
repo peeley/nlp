@@ -1,20 +1,12 @@
-import langModel, seq2seq, torch, random, datetime
+import langModel, seq2seq, torch, random, datetime, dataUtils
 import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-maxWords = 10
+maxWords = 50
 
-corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
+corpus, eng, ipq = dataUtils.loadInupiaqBible()
 trainingData = corpus.iloc[:500]
-vocab = 5000
-
-eng = langModel.langModel('english')
-spa = langModel.langModel('spanish')
-
-for row in range(vocab):
-    eng.addSentence(langModel.normalize(corpus.iloc[row]['eng']))
-    spa.addSentence(langModel.normalize(corpus.iloc[row]['spa']))
 
 train = True
 cuda = False
@@ -27,7 +19,7 @@ if train == True:
     loss_fn = nn.NLLLoss()
 
     encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 4)
-    decoder = seq2seq.attnDecoder(spa.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
+    decoder = seq2seq.attnDecoder(ipq.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr, momentum = .9)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
@@ -47,8 +39,8 @@ if train == True:
             print('Item #{}/{} \t Epoch {}/{}'.format(row+1, trainingData.shape[0], epoch+1, epochs))
             loss = 0
             inputString = langModel.expandContractions(langModel.normalize(trainingData.iloc[row]['eng']))
-            targetString = langModel.normalize(trainingData.iloc[row]['spa'])
-            inputTensor, targetTensor = langModel.tensorFromPair(eng, spa, inputString, targetString, train)
+            targetString = langModel.normalize(trainingData.iloc[row]['ipq'])
+            inputTensor, targetTensor = langModel.tensorFromPair(eng, ipq, inputString, targetString, train)
             if cuda:
                 inputTensor, targetTensor = inputTensor.to(device), targetTensor.to(device)
             
@@ -56,6 +48,7 @@ if train == True:
             decoderOptim.zero_grad()
 
             encoderHidden = seq2seq.initHidden(cuda, encoder.hiddenSize, decoder.numLayers)
+            # encoderOutputs dimension 1 is hiddenSize * 2 for bidiredtionality
             encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize * 2)
             if cuda:
                 encoderOutputs = encoderOutputs.to(device)
@@ -68,7 +61,7 @@ if train == True:
                     encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
             
-            decoderInput = torch.tensor([[spa.SOS]])
+            decoderInput = torch.tensor([[ipq.SOS]])
             if cuda:
                 decoderInput = decoderInput.to(device)
             decoderHidden = encoderHidden
@@ -88,10 +81,10 @@ if train == True:
                     topv, topi = decoderOutput.topk(1)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = topi.squeeze().detach()
-                    if decoderInput.item() == spa.EOS:
+                    if decoderInput.item() == ipq.EOS:
                         decodedString.append('/end/')
                         break
-                    decodedString.append(spa.idx2word[decoderInput.item()])
+                    decodedString.append(ipq.idx2word[decoderInput.item()])
             else:
                 for targetLetter in range(targetTensor.shape[0]):
                     if cuda:
@@ -102,7 +95,7 @@ if train == True:
                     decoderInput = targetTensor[targetLetter]
                     if decoderInput.item() == 1:
                         break
-                    decodedString.append(spa.idx2word[decoderInput.item()])
+                    decodedString.append(ipq.idx2word[decoderInput.item()])
             print('Translated sentence: \t', ' '.join(decodedString))
 
             loss.backward()

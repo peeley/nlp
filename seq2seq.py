@@ -50,7 +50,7 @@ class attnDecoder(nn.Module):
         self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
         self.dropout = nn.Dropout(dropoutProb)
         # currently experimenting with following rather than hiddenSize * 2
-        self.attn = nn.Linear(self.hiddenSize * self.numLayers + self.hiddenSize, self.maxLength)
+        self.attn = nn.Linear(self.hiddenSize * 2, self.maxLength)
         # bidirectional encoding requires input of attnCombine = hiddenSize * 3 for some reason
         # but unidirectional allows hiddenSize * 2
         self.attnCombine = nn.Linear(self.hiddenSize * 3, self.hiddenSize)
@@ -60,8 +60,8 @@ class attnDecoder(nn.Module):
     def forward(self, input, hidden, encoderOutputs):
         embed = self.embed(input).view(1,1,-1)
         embed = self.dropout(embed)
-        # experiment: following rather than hidden[0][0]
-        attn = self.attn(torch.cat((embed[0], hidden[0].view(1, self.hiddenSize * self.numLayers)), 1))
+        # experiment: hidden[0].view(1, self.hiddenSize * self.numLayers) following rather than hidden[0][0]
+        attn = self.attn(torch.cat((embed[0], hidden[0][-1]), 1))
         attnWeights = nn.functional.softmax(attn, dim=1)
         attnApplied = torch.bmm(attnWeights.unsqueeze(0), encoderOutputs.unsqueeze(0))
         

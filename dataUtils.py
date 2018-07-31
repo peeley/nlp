@@ -1,5 +1,5 @@
 import pandas as pd
-import unicodedata, string, torch
+import unicodedata, string, torch, langModel
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
@@ -32,6 +32,28 @@ def constructPokemon():
     nameFrame = pd.read_csv('/mnt/9C4269244269047C/Programming/nlp/data/pokemon/Pokemon.csv')
     nameFrame['Name'] = nameFrame['Name'].astype(str) + '>'
     return nameFrame['Name']
+
+def loadEnglishSpanish():
+    corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
+    eng = langModel.langModel('english')
+    spa = langModel.langModel('spanish')
+
+    for row in range(corpus.shape[0]):
+        eng.addSentence(langModel.normalize(corpus.iloc[row]['eng']))
+        spa.addSentence(langModel.normalize(corpus.iloc[row]['spa']))
+    return corpus, eng, spa
+
+def loadInupiaqBible():
+    print('Loading parallel texts...')
+    data = pd.read_csv('data/inupiaq/bible.csv', names = ['eng', 'ipq'])
+    eng = langModel.langModel('english')
+    ipq = langModel.langModel('inupiaq')
+    print('Parallel texts loaded, constructing language...')
+    for row in range(data.shape[0]):
+        eng.addSentence(langModel.normalize(data.iloc[row]['eng']))
+        ipq.addSentence(langModel.normalize(data.iloc[row]['ipq']))
+    print('Language constructed.')
+    return data, eng, ipq 
 
 def unicodeToAscii(s):
     return ''.join(

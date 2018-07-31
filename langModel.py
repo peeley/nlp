@@ -82,6 +82,7 @@ def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, train):
     return input, target
 
 def normalize(s):
+    s = str(s)
     s = (s.lower().strip())
     s = re.sub(r"([,.!?])", r" \1", s)
     return s
