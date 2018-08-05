@@ -1,5 +1,5 @@
 import pandas as pd
-import unicodedata, string, torch, langModel
+import unicodedata, string, torch, langModel, os
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
@@ -54,6 +54,60 @@ def loadInupiaqBible():
         ipq.addSentence(langModel.normalize(data.iloc[row]['ipq']))
     print('Language constructed.')
     return data, eng, ipq 
+
+def loadIpqDicts():
+    print('Creating new dataframe...')
+    frame = pd.DataFrame(columns = ['eng', 'ipq'])
+    index = 0
+    eng = langModel.langModel('english')
+    ipq = langModel.langModel('inupiaq')
+    with open('data/inupiaq/seiler_ipq_bpe.txt') as ipqFile:
+        for line in ipqFile:
+            line = line.strip('\n')
+            ipq.addSentence(langModel.normalize(line))
+            frame.loc[index, 'ipq'] = line
+            index += 1
+    index = 0
+    with open('data/inupiaq/seiler_eng_bpe.txt') as engFile:
+        for line in engFile:
+            line = line.strip('\n')
+            eng.addSentence(langModel.normalize(line))
+            frame.loc[index, 'eng'] = line
+            index += 1
+    frame.to_csv('data/inupiaq/maclean.csv')
+    return frame, eng, ipq
+
+def loadEnDe(vocabSize):
+    print('Creating new dataframe...')
+    frame = pd.DataFrame(columns = ['eng', 'de'])
+    index = 0
+    eng = langModel.langModel('english')
+    de = langModel.langModel('german')
+    with open('data/de-en/train.tok.clean.bpe.32000.de') as deFile:
+        print('Creating German language model...')
+        for line in deFile:
+            if index > vocabSize:
+                break
+            if len(line.split()) > 20:
+                continue
+            line = line.strip('\n')
+            de.addSentence(langModel.normalize(line))
+            frame.loc[index, 'de'] = line
+            index += 1
+    index = 0
+    with open('data/de-en/train.tok.clean.bpe.32000.en') as engFile:
+        print('Creating English language model...')
+        for line in engFile:
+            if index > vocabSize:
+                break
+            if len(line.split()) > 15:
+                continue
+            line = line.strip('\n')
+            eng.addSentence(langModel.normalize(line))
+            frame.loc[index, 'eng'] = line
+            index += 1
+    frame.to_csv('data/de-en/de-en.csv')
+    return frame, eng, de 
 
 def unicodeToAscii(s):
     return ''.join(

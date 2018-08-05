@@ -1,20 +1,12 @@
-import torch, seq2seq, langModel
+import torch, seq2seq, langModel, dataUtils
 import pandas as pd
 
-corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
+corpus, eng, ipq = dataUtils.loadDicts()
 vocab = 5000 
 maxWords = 10
-eng = langModel.langModel('english')
-spa = langModel.langModel('spanish')
 
-for row in range(vocab):
-    eng.addSentence(langModel.normalize(corpus.loc[row,'eng']))
-    spa.addSentence(langModel.normalize(corpus.loc[row,'spa']))
-
-encoder = seq2seq.encoder(eng.nWords+1, hiddenSize = 300, lr = .01)
-decoder = seq2seq.attnDecoder(spa.nWords+1,  300, .01, .1, 10)
-encoder.load_state_dict(torch.load('encoder.pt'))
-decoder.load_state_dict(torch.load('decoder.pt'))
+encoder = torch.load('encoder.pt')
+decoder = torch.load('decoder.pt')
 
 train = False
 cuda = False
@@ -35,31 +27,30 @@ def evaluate(rawString, testTarget = None):
             if inputSentence.shape[0] == 1:
                 if inputSentence.item() == -1:
                     break
+            
             inputLength = len(inputSentence)
-            encoderHidden = encoder.initHidden(cuda)
-            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize)
+            encoderHidden = seq2seq.initHidden(cuda, encoder.hiddenSize, decoder.numLayers)
+            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize * 2)
             if cuda:
                 encoderOutpus = encoderOutputs.to(device)
             for word in range(inputLength):
                 encoderOutput, encoderHidden = encoder(inputSentence[word], encoderHidden)
                 encoderOutputs[word] = encoderOutput[0,0]
 
-            decoderInput = torch.tensor([[spa.SOS]])
+            decoderInput = torch.tensor([[ipq.SOS]])
             if cuda:
                 decoderInput = decoderInput.to(device)
             decoderHidden = encoderHidden
             decodedWords = []
             
-            for letter in range(inputLength):
+            for letter in range(maxWords):
                 decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                 topv, topi = decoderOutput.data.topk(1)
                 if topi.item() == 1:
                     break
                 else:
-                    decodedWords.append(spa.idx2word[topi.item()])
+                    decodedWords.append(ipq.idx2word[topi.item()])
                 decoderInput = topi.squeeze().detach()
-            if testTarget:
-                print('Target: \t', testTarget)
             print('Translated: \t', ' '.join(decodedWords),'\n')
 
 while True:
