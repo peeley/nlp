@@ -77,30 +77,30 @@ def loadIpqDicts():
     frame.to_csv('data/inupiaq/maclean.csv')
     return frame, eng, ipq
 
-def loadEnDe(vocabSize):
+def loadEnDe(vocabSize, maxWords):
     print('Creating new dataframe...')
     frame = pd.DataFrame(columns = ['eng', 'de'])
     index = 0
     eng = langModel.langModel('english')
     de = langModel.langModel('german')
-    with open('data/de-en/train.tok.clean.bpe.32000.de') as deFile:
+    with open('data/de-en/train.tok.clean.bpe.32000.de', encoding = 'utf8') as deFile:
         print('Creating German language model...')
         for line in deFile:
             if index > vocabSize:
                 break
-            if len(line.split()) > 20:
+            if len(line.split())+1 >= maxWords:
                 continue
             line = line.strip('\n')
             de.addSentence(langModel.normalize(line))
             frame.loc[index, 'de'] = line
             index += 1
     index = 0
-    with open('data/de-en/train.tok.clean.bpe.32000.en') as engFile:
+    with open('data/de-en/train.tok.clean.bpe.32000.en', encoding = 'utf8') as engFile:
         print('Creating English language model...')
         for line in engFile:
             if index > vocabSize:
                 break
-            if len(line.split()) > 15:
+            if len(line.split())+1 >= maxWords:
                 continue
             line = line.strip('\n')
             eng.addSentence(langModel.normalize(line))

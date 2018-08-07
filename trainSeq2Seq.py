@@ -3,22 +3,22 @@ import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-maxWords = 50
-size = 1000
-corpus, eng, de = dataUtils.loadEnDe(size)
+maxWords = 10
+size = 100
+corpus, eng, de = dataUtils.loadEnDe(size, maxWords)
 trainingData = corpus.iloc[:size]
 
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 5
+    epochs = 40
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 2)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 3)
     decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr, momentum = .9)
@@ -53,7 +53,7 @@ if train == True:
             if cuda:
                 encoderOutputs = encoderOutputs.to(device)
 
-            print('Encoding sentence: \t', inputString)
+            print('Encoding sentence: \t', inputString.encode('utf8'))
             for inputLetter in range(inputTensor.shape[0]):
                 if cuda:
                     encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
@@ -68,7 +68,7 @@ if train == True:
 
             teacherForce = True if random.random() < teacherForceRatio else False
 
-            print('Target sentence: \t', targetString)
+            print('Target sentence: \t', targetString.encode('utf8'))
             decodedString = []
             if teacherForce:
                 for targetLetter in range(targetTensor.shape[0]):
@@ -96,7 +96,7 @@ if train == True:
                     if decoderInput.item() == 1:
                         break
                     decodedString.append(de.idx2word[decoderInput.item()])
-            print('Translated sentence: \t', ' '.join(decodedString))
+            print('Translated sentence: \t', ' '.join(decodedString).encode('utf8'))
 
             loss.backward()
             encoderOptim.step()
