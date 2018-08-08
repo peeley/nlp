@@ -2,6 +2,7 @@ import langModel, seq2seq, torch, random, datetime, dataUtils
 import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
+from nltk.translate.bleu_score import sentence_bleu
 
 maxWords = 10
 size = 100
@@ -17,8 +18,10 @@ if train == True:
     recordInterval = 50
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
+    bleuAVG = 0
+    bleuScores = []
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 3)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 2)
     decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     parameters = filter(lambda p: p.requires_grad, encoder.parameters())
     encoderOptim = torch.optim.SGD(parameters, encoder.lr, momentum = .9)
@@ -103,16 +106,26 @@ if train == True:
             decoderOptim.step()
 
             recordIndex += 1
-            if recordIndex % recordInterval == 0:
-                losses.append(loss)
-            print('Loss: ', loss.item(), '\n')
+            losses.append(loss)
+            print('Loss: \t\t', loss.item())
+            if '' in decodedString:
+                decodedString = list(filter(None, decodedString))
+            if len(decodedString) == 0:
+                bleu = 0
+            else:
+                    bleu = sentence_bleu([targetString.split()], decodedString)
+            print('BLEU Score: \t', bleu)
+            bleuAVG = ((bleuAVG + bleu) / len(losses)) * 100
+            bleuScores.append(bleuAVG)
+            print('BLEU Average: \t', bleuAVG, '\n')
         encoderScheduler.step(loss)
         decoderScheduler.step(loss)
 
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
     print('Elapsed time: ', elapsedTime)
-    plt.plot(losses)
+    plt.plot(losses, label = "Losses")
+    plt.plot(bleuScores, label = "BLEU")
     plt.show()
     plt.savefig('results.png')
     print('Writing models to disk...')

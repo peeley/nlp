@@ -88,7 +88,7 @@ def loadEnDe(vocabSize, maxWords):
         for line in deFile:
             if index > vocabSize:
                 break
-            if len(line.split())+1 >= maxWords:
+            if len(line.split())+2 >= maxWords:
                 continue
             line = line.strip('\n')
             de.addSentence(langModel.normalize(line))
@@ -100,7 +100,7 @@ def loadEnDe(vocabSize, maxWords):
         for line in engFile:
             if index > vocabSize:
                 break
-            if len(line.split())+1 >= maxWords:
+            if len(line.split())+2 >= maxWords:
                 continue
             line = line.strip('\n')
             eng.addSentence(langModel.normalize(line))

@@ -61,7 +61,7 @@ class attnDecoder(nn.Module):
         embed = self.embed(input).view(1,1,-1)
         embed = self.dropout(embed)
         # experiment: hidden[0].view(1, self.hiddenSize * self.numLayers) following rather than hidden[0][0]
-        attn = self.attn(torch.cat((embed[0], hidden[0][0]), 1))
+        attn = self.attn(torch.cat((embed[0], hidden[0][-1]), 1))
         attnWeights = nn.functional.softmax(attn, dim=1)
         attnApplied = torch.bmm(attnWeights.unsqueeze(0), encoderOutputs.unsqueeze(0))
         
