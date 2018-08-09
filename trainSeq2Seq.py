@@ -13,7 +13,7 @@ train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 40
+    epochs = 80
     recordIndex = 0
     recordInterval = 50
     teacherForceRatio = .5
@@ -21,10 +21,9 @@ if train == True:
     bleuAVG = 0
     bleuScores = []
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSizes['debug'], lr = .01, numLayers = 2)
-    decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSizes['debug'] , lr=.01, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
-    parameters = filter(lambda p: p.requires_grad, encoder.parameters())
-    encoderOptim = torch.optim.SGD(parameters, encoder.lr, momentum = .9)
+    encoder = seq2seq.encoder(eng.nWords+1, 300, lr = .05, numLayers = 2)
+    decoder = seq2seq.attnDecoder(de.nWords+1, 300, lr=.05, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
+    encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
     decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
@@ -108,16 +107,21 @@ if train == True:
             recordIndex += 1
             losses.append(loss)
             print('Loss: \t\t', loss.item())
-            if '' in decodedString:
-                decodedString = list(filter(None, decodedString))
-            if len(decodedString) == 0:
-                bleu = 0
-            else:
+            if epoch == epochs-1:
+                if '' in decodedString:
+                    decodedString = list(filter(None, decodedString))
+                if '/end/' in decodedString: 
+                    decodedString.remove('/end/')
+                if decodedString == None:
+                    bleu = 0
+                else:
                     bleu = sentence_bleu([targetString.split()], decodedString)
-            print('BLEU Score: \t', bleu)
-            bleuAVG = ((bleuAVG + bleu) / len(losses)) * 100
-            bleuScores.append(bleuAVG)
-            print('BLEU Average: \t', bleuAVG, '\n')
+                print('BLEU Score: \t', bleu)
+                bleuAVG = ((bleuAVG + bleu) / len(losses)) * 100
+                bleuScores.append(bleuAVG)
+                print('BLEU Average: \t', bleuAVG, '\n')
+            else:
+                print('\n')
         encoderScheduler.step(loss)
         decoderScheduler.step(loss)
 
@@ -125,7 +129,6 @@ if train == True:
     elapsedTime = endTime - startTime
     print('Elapsed time: ', elapsedTime)
     plt.plot(losses, label = "Losses")
-    plt.plot(bleuScores, label = "BLEU")
     plt.show()
     plt.savefig('results.png')
     print('Writing models to disk...')
