@@ -4,18 +4,18 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import sentence_bleu
 
-maxWords = 10
-size = 100
-corpus, eng, de = dataUtils.loadEnDe(size, maxWords)
+maxWords = 25
+size = 1000
+corpus, eng, de = dataUtils.loadEnDe(size, 10)
 trainingData = corpus.iloc[:size]
 
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 80
+    epochs = 10
     recordIndex = 0
-    recordInterval = 50
+    recordInterval = 25
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
     bleuAVG = 0
@@ -105,7 +105,8 @@ if train == True:
             decoderOptim.step()
 
             recordIndex += 1
-            losses.append(loss)
+            if recordIndex % recordInterval == 0:
+                losses.append(loss)
             print('Loss: \t\t', loss.item())
             if epoch == epochs-1:
                 if '' in decodedString:
@@ -117,8 +118,8 @@ if train == True:
                 else:
                     bleu = sentence_bleu([targetString.split()], decodedString)
                 print('BLEU Score: \t', bleu)
-                bleuAVG = ((bleuAVG + bleu) / len(losses)) * 100
-                bleuScores.append(bleuAVG)
+                bleuScores.append(bleu)
+                bleuAVG = (sum(bleuScores)/len(bleuScores)) * 100
                 print('BLEU Average: \t', bleuAVG, '\n')
             else:
                 print('\n')
