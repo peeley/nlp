@@ -1,19 +1,18 @@
-import langModel, seq2seq, torch, random, datetime, dataUtils
+import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq
 import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from nltk.translate.bleu_score import sentence_bleu
 
 maxWords = 25
-size = 1000
-corpus, eng, de = dataUtils.loadEnDe(size, 10)
+size = 100
+corpus, eng, de = dataUtils.loadEnDe(size, 15)
 trainingData = corpus.iloc[:size]
-
+testData = corpus.iloc[size-100:size]
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 10
+    epochs = 40
     recordIndex = 0
     recordInterval = 25
     teacherForceRatio = .5
@@ -21,8 +20,8 @@ if train == True:
     bleuAVG = 0
     bleuScores = []
 
-    encoder = seq2seq.encoder(eng.nWords+1, 300, lr = .05, numLayers = 2)
-    decoder = seq2seq.attnDecoder(de.nWords+1, 300, lr=.05, dropoutProb=.001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
+    encoder = seq2seq.encoder(eng.nWords, 512, lr = .01, numLayers = 3)
+    decoder = seq2seq.attnDecoder(de.nWords, 512, lr = .01, dropoutProb = .001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9)
     decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
@@ -51,7 +50,7 @@ if train == True:
 
             encoderHidden = seq2seq.initHidden(cuda, encoder.hiddenSize, decoder.numLayers)
             # encoderOutputs dimension 1 is hiddenSize * 2 for bidiredtionality
-            encoderOutputs = torch.zeros(maxWords, encoder.hiddenSize * 2)
+            encoderOutputs = torch.zeros(decoder.maxLength, encoder.hiddenSize * 2)
             if cuda:
                 encoderOutputs = encoderOutputs.to(device)
 
@@ -72,7 +71,19 @@ if train == True:
 
             print('Target sentence: \t', targetString.encode('utf8'))
             decodedString = []
-            if teacherForce:
+            if teacherForce: # teacher forcing, letters of target sentence are next input of decoder
+
+                for targetLetter in range(targetTensor.shape[0]):
+                    if cuda:
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+                    else:
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+                    loss += loss_fn(decoderOutput, targetTensor[targetLetter])
+                    decoderInput = targetTensor[targetLetter]
+                    if decoderInput.item() == 1:
+                        break
+                    decodedString.append(de.idx2word[decoderInput.item()])
+            else:  # no teacher forcing, outputs are fed as inputs of decoder 
                 for targetLetter in range(targetTensor.shape[0]):
                     if cuda:
                         decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
@@ -87,17 +98,6 @@ if train == True:
                         decodedString.append('/end/')
                         break
                     decodedString.append(de.idx2word[decoderInput.item()])
-            else:
-                for targetLetter in range(targetTensor.shape[0]):
-                    if cuda:
-                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                    else:
-                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                    loss += loss_fn(decoderOutput, targetTensor[targetLetter])
-                    decoderInput = targetTensor[targetLetter]
-                    if decoderInput.item() == 1:
-                        break
-                    decodedString.append(de.idx2word[decoderInput.item()])
             print('Translated sentence: \t', ' '.join(decodedString).encode('utf8'))
 
             loss.backward()
@@ -107,25 +107,10 @@ if train == True:
             recordIndex += 1
             if recordIndex % recordInterval == 0:
                 losses.append(loss)
-            print('Loss: \t\t', loss.item())
-            if epoch == epochs-1:
-                if '' in decodedString:
-                    decodedString = list(filter(None, decodedString))
-                if '/end/' in decodedString: 
-                    decodedString.remove('/end/')
-                if decodedString == None:
-                    bleu = 0
-                else:
-                    bleu = sentence_bleu([targetString.split()], decodedString)
-                print('BLEU Score: \t', bleu)
-                bleuScores.append(bleu)
-                bleuAVG = (sum(bleuScores)/len(bleuScores)) * 100
-                print('BLEU Average: \t', bleuAVG, '\n')
-            else:
-                print('\n')
+            print('Loss: \t\t', loss.item(), '\n')
         encoderScheduler.step(loss)
         decoderScheduler.step(loss)
-
+    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, de)
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
     print('Elapsed time: ', elapsedTime)

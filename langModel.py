@@ -72,7 +72,7 @@ def idxFromSentence(lang, sentence, train):
 def tensorFromSentence(lang, sentence, train):
     idx = idxFromSentence(lang, sentence, train)
     if idx == -1:
-        return torch.Tensor(-1)
+        return torch.Tensor([-1])
     idx.append(lang.EOS)
     return torch.tensor(idx, dtype = torch.long).view(-1,1)
 
