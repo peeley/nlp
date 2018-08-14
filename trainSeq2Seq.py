@@ -4,15 +4,15 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 maxWords = 25
-size = 100
-corpus, eng, de = dataUtils.loadEnDe(size, 15)
+size = 200
+corpus, eng, de = dataUtils.loadEnDe(size+100, 15)
 trainingData = corpus.iloc[:size]
-testData = corpus.iloc[size-100:size]
+testData = corpus.iloc[size:size+100]
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 40
+    epochs = 20
     recordIndex = 0
     recordInterval = 25
     teacherForceRatio = .5
@@ -20,10 +20,12 @@ if train == True:
     bleuAVG = 0
     bleuScores = []
 
-    encoder = seq2seq.encoder(eng.nWords, 512, lr = .01, numLayers = 3)
-    decoder = seq2seq.attnDecoder(de.nWords, 512, lr = .01, dropoutProb = .001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
-    encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9)
-    decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
+    encoder = seq2seq.encoder(eng.nWords, 256, lr = .001, numLayers = 2)
+    decoder = seq2seq.attnDecoder(de.nWords, 256, lr = .001, dropoutProb = .001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
+    #encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9)
+    #decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
+    encoderOptim = torch.optim.Adam(encoder.parameters(), encoder.lr)
+    decoderOptim = torch.optim.Adam(decoder.parameters(), encoder.lr)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
     decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
     if torch.cuda.is_available():
@@ -36,11 +38,12 @@ if train == True:
 
     startTime = datetime.datetime.now()
     for epoch in range(epochs):
-        for row in range(trainingData.shape[0]):
-            print('Item #{}/{} \t Epoch {}/{}'.format(row+1, trainingData.shape[0], epoch+1, epochs))
+        for row in range(size):
+            sample = int(size * random.random())
+            print('Item #{}/{} \t Sample Row: {} \t Epoch {}/{}'.format(row+1, trainingData.shape[0], sample, epoch+1, epochs))
             loss = 0
-            inputString = langModel.expandContractions(langModel.normalize(trainingData.iloc[row]['eng']))
-            targetString = langModel.normalize(trainingData.iloc[row]['de'])
+            inputString = langModel.expandContractions(langModel.normalize(trainingData.iloc[sample]['eng']))
+            targetString = langModel.normalize(trainingData.iloc[sample]['de'])
             inputTensor, targetTensor = langModel.tensorFromPair(eng, de, inputString, targetString, train)
             if cuda:
                 inputTensor, targetTensor = inputTensor.to(device), targetTensor.to(device)
@@ -56,10 +59,7 @@ if train == True:
 
             print('Encoding sentence: \t', inputString.encode('utf8'))
             for inputLetter in range(inputTensor.shape[0]):
-                if cuda:
-                    encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
-                else:
-                    encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
+                encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
             
             decoderInput = torch.tensor([[de.SOS]])
@@ -72,12 +72,8 @@ if train == True:
             print('Target sentence: \t', targetString.encode('utf8'))
             decodedString = []
             if teacherForce: # teacher forcing, letters of target sentence are next input of decoder
-
                 for targetLetter in range(targetTensor.shape[0]):
-                    if cuda:
-                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                    else:
-                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+                    decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = targetTensor[targetLetter]
                     if decoderInput.item() == 1:
@@ -85,10 +81,7 @@ if train == True:
                     decodedString.append(de.idx2word[decoderInput.item()])
             else:  # no teacher forcing, outputs are fed as inputs of decoder 
                 for targetLetter in range(targetTensor.shape[0]):
-                    if cuda:
-                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                    else:
-                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+                    decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     if cuda:
                         decoderOutput = decoderOutput.to(device)
                     topv, topi = decoderOutput.topk(1)
@@ -101,6 +94,7 @@ if train == True:
             print('Translated sentence: \t', ' '.join(decodedString).encode('utf8'))
 
             loss.backward()
+            nn.utils.clip_grad_norm(decoder.parameters(), 5)
             encoderOptim.step()
             decoderOptim.step()
 
@@ -108,12 +102,13 @@ if train == True:
             if recordIndex % recordInterval == 0:
                 losses.append(loss)
             print('Loss: \t\t', loss.item(), '\n')
-        encoderScheduler.step(loss)
-        decoderScheduler.step(loss)
+        #encoderScheduler.step(loss)
+        #decoderScheduler.step(loss)
     evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, de)
+    print('Final loss: \t', losses[-1].item())
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
-    print('Elapsed time: ', elapsedTime)
+    print('Elapsed time: \t', elapsedTime)
     plt.plot(losses, label = "Losses")
     plt.show()
     plt.savefig('results.png')

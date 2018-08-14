@@ -53,7 +53,7 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
         print('--- TESTING BLEU SCORES ---')
         for index, line in testData.iterrows():
             testLine    = line[testLang.name]
-            targetLine  = line[targetLang.name]
+            targetLine  = langModel.normalize(line[targetLang.name])
             decodedString = evaluate(encoder, decoder, [testLine], testLang, targetLang)
             if '' in decodedString:
                 decodedString = list(filter(None, decodedString))
@@ -63,11 +63,12 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
                 bleu = 0
             else:
                 bleu = sentence_bleu([targetLine.split()], decodedString)
-            print('Target: ', targetLine)
+            print('Target: \t', targetLine)
             print('BLEU Score: \t', bleu)
             bleuScores.append(bleu)
             bleuAVG = (sum(bleuScores)/len(bleuScores)) * 100
             print('BLEU Average: \t', bleuAVG, '\n')
+        print('\nFinal BLEU: \t', bleuAVG)
 
 
 if __name__ == '__main__':
