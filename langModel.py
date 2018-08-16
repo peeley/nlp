@@ -62,11 +62,11 @@ def idxFromSentence(lang, sentence, train):
         try:
             indices.append(lang.word2idx[word])
         except KeyError as e:
-            if train:
-                indices.append(lang.nWords)
-            else:
-                print('ERROR - Word not in vocabulary: ', e, '\n')
-                return -1
+            lang.word2idx[word] = lang.nWords
+            lang.word2count[word] = 1
+            lang.idx2word[lang.nWords] = word
+            indices.append(lang.nWords)
+            print('WARNING - Word not in vocabulary: ', word)
     return indices
 
 def tensorFromSentence(lang, sentence, train):

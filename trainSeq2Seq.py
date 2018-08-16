@@ -4,15 +4,16 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 maxWords = 25
-size = 200
-corpus, eng, de = dataUtils.loadEnDe(size+100, 15)
+size = 1
+corpus, eng, de = dataUtils.loadEnDe(size)
 trainingData = corpus.iloc[:size]
-testData = corpus.iloc[size:size+100]
+testData = dataUtils.loadTestEnDe()[:100]
+
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 20
+    epochs = 1
     recordIndex = 0
     recordInterval = 25
     teacherForceRatio = .5
@@ -20,8 +21,8 @@ if train == True:
     bleuAVG = 0
     bleuScores = []
 
-    encoder = seq2seq.encoder(eng.nWords, 256, lr = .001, numLayers = 2)
-    decoder = seq2seq.attnDecoder(de.nWords, 256, lr = .001, dropoutProb = .001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
+    encoder = seq2seq.encoder(eng.nWords+2, hiddenSize=256, lr = .001, numLayers = 2)
+    decoder = seq2seq.attnDecoder(de.nWords+2, hiddenSize=256, lr = .001, dropoutProb = .001, maxLength=maxWords, numLayers = encoder.numLayers * 2)
     #encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9)
     #decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9)
     encoderOptim = torch.optim.Adam(encoder.parameters(), encoder.lr)

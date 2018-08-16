@@ -72,7 +72,7 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
 
 
 if __name__ == '__main__':
-    corpus, eng, de = dataUtils.loadEnDe(1000, 15)
+    corpus, eng, de = dataUtils.loadEnDe(1000)
     vocab = 5000 
     maxWords = 10
 

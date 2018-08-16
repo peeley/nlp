@@ -77,15 +77,15 @@ def loadIpqDicts():
     frame.to_csv('data/inupiaq/maclean.csv')
     return frame, eng, ipq
 
-def loadEnDe(vocabSize, maxWords):
-    print('Creating new dataframe...')
+def loadEnDe(vocabSize):
+    print('Creating dataset...')
     frame = pd.DataFrame(columns = ['eng', 'de'])
     index = 0
     eng = langModel.langModel('eng')
     de = langModel.langModel('de')
     deFile = open('data/de-en/train.tok.clean.bpe.32000.de', encoding = 'utf8')
     engFile = open('data/de-en/train.tok.clean.bpe.32000.en', encoding = 'utf8')
-    print('Creating German language model...')
+    print('Creating language models...')
     for deLine, engLine in zip(deFile, engFile):
         if index > vocabSize:
             break
@@ -97,8 +97,29 @@ def loadEnDe(vocabSize, maxWords):
             frame.loc[index, 'de'] = deLine
             frame.loc[index, 'eng'] = engLine
             index += 1
+    print('Creation complete.')
+    deFile.close()
+    engFile.close()
     frame.to_csv('data/de-en/de-en.csv')
     return frame, eng, de 
+
+def loadTestEnDe():
+    index = 0
+    frame = pd.DataFrame(columns = ['eng', 'de'])
+    deFile = open('data/de-en/newstest2012.de')
+    engFile = open('data/de-en/newstest2012.en')
+    print('Creating test dataset...')
+    for deLine, engLine in zip(deFile, engFile):
+        deLine = deLine.strip('\n')
+        engLine = engLine.strip('\n')
+        if len(deLine.split()) - 2 < 15 and len(engLine.split()) - 2 < 15:
+            frame.loc[index, 'de'] = deLine
+            frame.loc[index, 'eng'] = engLine
+            index += 1
+    print('Creation complete.')
+    deFile.close()
+    engFile.close()
+    return frame
 
 def unicodeToAscii(s):
     return ''.join(
