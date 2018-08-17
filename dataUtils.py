@@ -104,7 +104,7 @@ def loadEnDe(vocabSize):
     engFile = open('data/de-en/train.tok.clean.bpe.32000.en', encoding = 'utf8')
     print('Creating language models...')
     for deLine, engLine in zip(deFile, engFile):
-        if index > vocabSize:
+        if index == vocabSize:
             break
         deLine = deLine.strip('\n')
         engLine = engLine.strip('\n')
@@ -114,7 +114,7 @@ def loadEnDe(vocabSize):
             frame.loc[index, 'de'] = deLine
             frame.loc[index, 'eng'] = engLine
             index += 1
-    print('Creation complete.')
+    print('Creation complete, ', index, ' lines.')
     deFile.close()
     engFile.close()
     frame.to_csv('data/de-en/de-en.csv')

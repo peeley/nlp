@@ -4,21 +4,19 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 maxWords = 25
-size = 1000
-hSize = 512
+size = 100
+hSize = 128
 layers = 2
 
-corpus, eng, de = dataUtils.loadEnDe(size)
-trainingData = corpus
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4)
+trainingData, eng, de = dataUtils.loadEnDe(size)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 8)
 testData = dataUtils.loadTestEnDe()[:100]
 
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 5
-    recordIndex = 0
+    epochs = 1
     recordInterval = 25
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
@@ -32,17 +30,18 @@ if train == True:
         device = torch.device('cpu')
         print('PROCESSING WITH CPU')
 
-    encoder = seq2seq.encoder(eng.nWords, hiddenSize=512, lr = .001, numLayers = layers).to(device)
-    decoder = seq2seq.attnDecoder(de.nWords, hiddenSize=512, lr = .001, dropoutProb = .001, maxLength=maxWords, numLayers = layers*2).to(device)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize=hSize, lr = .001, numLayers = layers).to(device)
+    decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSize=hSize, lr = .001, dropoutProb = .001, maxLength=maxWords, numLayers = layers*2).to(device)
     encoderOptim = torch.optim.Adam(encoder.parameters(), encoder.lr)
     decoderOptim = torch.optim.Adam(decoder.parameters(), encoder.lr)
     encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
     decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
     losses = []
+    encoder = nn.DataParallel(encoder)
+    decoder = nn.DataParallel(decoder)
 
     startTime = datetime.datetime.now()
     for epoch in range(epochs):
-        #for row in range(size):
         for row, item in enumerate(dataLoader):
             inputTensor, targetTensor = item[0].view(-1, 1).to(device), item[1].view(-1, 1).to(device)
             loss = 0
@@ -89,8 +88,7 @@ if train == True:
             encoderOptim.step()
             decoderOptim.step()
 
-            recordIndex += 1
-            if recordIndex % recordInterval == 0:
+            if row % recordInterval == 0:
                 losses.append(loss)
             print('Loss: \t\t', loss.item(), '\n')
     evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, de)

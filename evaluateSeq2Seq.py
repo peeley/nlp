@@ -3,9 +3,12 @@ import pandas as pd
 from nltk.translate.bleu_score import sentence_bleu
 
 def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = None):
+    hSize = 128
+    maxWords = 25
+    layers = 2
     cuda = False
     if torch.cuda.is_available():
-        device = torch.device('cuda:0')
+        device = torch.device('cuda')
         encoder.to(device)
         decoder.to(device)
         cuda = True
@@ -21,8 +24,8 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = Non
                     return ['NONE']
 
             inputLength = len(inputSentence)
-            encoderHidden = seq2seq.initHidden(cuda, encoder.hiddenSize, decoder.numLayers)
-            encoderOutputs = torch.zeros(decoder.maxLength, encoder.hiddenSize * 2)
+            encoderHidden = seq2seq.initHidden(cuda, hSize, layers * 2)
+            encoderOutputs = torch.zeros(maxWords, hSize * 2)
             if cuda:
                 encoderOutpus = encoderOutputs.to(device)
             for word in range(inputLength):
@@ -35,7 +38,7 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = Non
             decoderHidden = encoderHidden
             decodedWords = []
             
-            for letter in range(decoder.maxLength):
+            for letter in range(maxWords):
                 decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                 topv, topi = decoderOutput.data.topk(1)
                 if topi.item() == 1:
