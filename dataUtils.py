@@ -1,8 +1,25 @@
 import pandas as pd
-import unicodedata, string, torch, langModel, os
+import unicodedata, string, torch, langModel, os, langModel
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
+
+class LangDataset(torch.utils.data.Dataset):
+    def __init__(self, frame, testLang, targetLang, transform = None):
+        self.frame = frame
+        self.testLang = testLang
+        self.targetLang = targetLang
+
+    def __len__(self):
+        return len(self.frame)
+
+    def __getitem__(self, idx):
+        testLine = langModel.normalize(self.frame.loc[idx, self.testLang.name])
+        print('Encoding sentence: \t', testLine)
+        targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
+        print('Target setnence: \t', targetLine)
+        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine, True)
+        return (testTensor, targetTensor)
 
 def constructJoke():
     print('Importing data...')
@@ -101,13 +118,14 @@ def loadEnDe(vocabSize):
     deFile.close()
     engFile.close()
     frame.to_csv('data/de-en/de-en.csv')
-    return frame, eng, de 
+    dataset = LangDataset(frame, eng, de)
+    return dataset, eng, de 
 
 def loadTestEnDe():
     index = 0
     frame = pd.DataFrame(columns = ['eng', 'de'])
-    deFile = open('data/de-en/newstest2012.de')
-    engFile = open('data/de-en/newstest2012.en')
+    deFile = open('data/de-en/newstest2012.tok.bpe.32000.de')
+    engFile = open('data/de-en/newstest2012.tok.bpe.32000.en')
     print('Creating test dataset...')
     for deLine, engLine in zip(deFile, engFile):
         deLine = deLine.strip('\n')
