@@ -56,7 +56,7 @@ class langModel:
         else:
             self.word2count[word] += 1
 
-def idxFromSentence(lang, sentence, train):
+def idxFromSentence(lang, sentence):
     indices = []
     for word in sentence.split(' '):
         try:
@@ -69,16 +69,17 @@ def idxFromSentence(lang, sentence, train):
             print('WARNING - Word not in vocabulary: ', word)
     return indices
 
-def tensorFromSentence(lang, sentence, train):
-    idx = idxFromSentence(lang, sentence, train)
+def tensorFromSentence(lang, sentence,  length):
+    idx = idxFromSentence(lang, sentence)
     if idx == -1:
         return torch.Tensor([-1])
-    idx.append(lang.EOS)
+    #while len(idx) < length:
+    #    idx.append(lang.EOS)
     return torch.tensor(idx, dtype = torch.long).view(-1,1)
 
-def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, train):
-    input = tensorFromSentence(inputLang, inputSentence, train)
-    target = tensorFromSentence(outputLang, outputSentence, train)
+def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length):
+    input = tensorFromSentence(inputLang, inputSentence, length)
+    target = tensorFromSentence(outputLang, outputSentence, length)
     return input, target
 
 def normalize(s):

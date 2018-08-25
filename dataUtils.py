@@ -5,10 +5,11 @@ all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
 
 class LangDataset(torch.utils.data.Dataset):
-    def __init__(self, frame, testLang, targetLang, transform = None):
+    def __init__(self, frame, testLang, targetLang, length, transform = None):
         self.frame = frame
         self.testLang = testLang
         self.targetLang = targetLang
+        self.length = length
 
     def __len__(self):
         return len(self.frame)
@@ -18,7 +19,7 @@ class LangDataset(torch.utils.data.Dataset):
         print('Encoding sentence: \t', testLine)
         targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
         print('Target setnence: \t', targetLine)
-        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine, True)
+        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine, self.length)
         return (testTensor, targetTensor)
 
 def constructJoke():
@@ -94,7 +95,7 @@ def loadIpqDicts():
     frame.to_csv('data/inupiaq/maclean.csv')
     return frame, eng, ipq
 
-def loadEnDe(vocabSize):
+def loadEnDe(vocabSize, words):
     print('Creating dataset...')
     frame = pd.DataFrame(columns = ['eng', 'de'])
     index = 0
@@ -110,7 +111,7 @@ def loadEnDe(vocabSize):
         engLine = engLine.strip('\n')
         de.addSentence(langModel.normalize(deLine))
         eng.addSentence(langModel.normalize(engLine))
-        if len(deLine.split()) - 2 < 15 and len(engLine.split()) - 2 < 15:
+        if len(deLine.split()) < words and len(engLine.split()) < words:
             frame.loc[index, 'de'] = deLine
             frame.loc[index, 'eng'] = engLine
             index += 1
@@ -118,10 +119,10 @@ def loadEnDe(vocabSize):
     deFile.close()
     engFile.close()
     frame.to_csv('data/de-en/de-en.csv')
-    dataset = LangDataset(frame, eng, de)
+    dataset = LangDataset(frame, eng, de, words)
     return dataset, eng, de 
 
-def loadTestEnDe():
+def loadTestEnDe(size):
     index = 0
     frame = pd.DataFrame(columns = ['eng', 'de'])
     deFile = open('data/de-en/newstest2012.tok.bpe.32000.de')
@@ -130,7 +131,7 @@ def loadTestEnDe():
     for deLine, engLine in zip(deFile, engFile):
         deLine = deLine.strip('\n')
         engLine = engLine.strip('\n')
-        if len(deLine.split()) - 2 < 15 and len(engLine.split()) - 2 < 15:
+        if len(deLine.split()) < size and len(engLine.split()) < size:
             frame.loc[index, 'de'] = deLine
             frame.loc[index, 'eng'] = engLine
             index += 1

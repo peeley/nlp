@@ -4,8 +4,8 @@ from nltk.translate.bleu_score import sentence_bleu
 
 def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = None):
     hSize = 128
-    maxWords = 25
-    layers = 2
+    maxWords = 15
+    layers = 4
     cuda = False
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -16,7 +16,7 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = Non
         for item in range(len(rawString)):
             inputString = langModel.expandContractions(langModel.normalize(rawString[item]))
             print('\nTest sentence: \t', inputString)
-            inputSentence = langModel.tensorFromSentence(testLang, inputString, False)
+            inputSentence = langModel.tensorFromSentence(testLang, inputString, False).view(-1,1)
             if cuda:
                 inputSentence = inputSentence.cuda()
             if inputSentence.shape[0] == 1:
@@ -28,7 +28,7 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = Non
             encoderOutputs = torch.zeros(maxWords, hSize * 2)
             if cuda:
                 encoderOutpus = encoderOutputs.to(device)
-            for word in range(inputLength):
+            for word in range(inputSentence.shape[0]):
                 encoderOutput, encoderHidden = encoder(inputSentence[word], encoderHidden)
                 encoderOutputs[word] = encoderOutput[0,0]
 

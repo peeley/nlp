@@ -3,20 +3,22 @@ import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-maxWords = 25
+maxWords = 15
 size = 100
-hSize = 128
-layers = 2
+vocabSize = 10
+hSize = 256
+layers = 3
+batch = 1
 
-trainingData, eng, de = dataUtils.loadEnDe(size)
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 8)
-testData = dataUtils.loadTestEnDe()[:100]
+trainingData, eng, de = dataUtils.loadEnDe(size, vocabSize)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 8, batch_size = batch)
+testData = dataUtils.loadTestEnDe(vocabSize)[:100]
 
 train = True
 cuda = False
 hiddenSizes = {'debug':300, 'prod':1024}
 if train == True:
-    epochs = 1
+    epochs = 40
     recordInterval = 25
     teacherForceRatio = .5
     loss_fn = nn.NLLLoss()
@@ -30,12 +32,12 @@ if train == True:
         device = torch.device('cpu')
         print('PROCESSING WITH CPU')
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize=hSize, lr = .001, numLayers = layers).to(device)
-    decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSize=hSize, lr = .001, dropoutProb = .001, maxLength=maxWords, numLayers = layers*2).to(device)
-    encoderOptim = torch.optim.Adam(encoder.parameters(), encoder.lr)
-    decoderOptim = torch.optim.Adam(decoder.parameters(), encoder.lr)
-    encoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(encoderOptim)
-    decoderScheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoderOptim)
+    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize=hSize, lr = .01, numLayers = layers, batchSize = batch).to(device)
+    decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSize=hSize, lr = .01, dropoutProb = .001, maxLength=maxWords, numLayers = layers).to(device)
+    encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
+    decoderOptim = torch.optim.SGD(decoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
+    encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
+    decoderScheduler = torch.optim.lr_scheduler.ExponentialLR(decoderOptim, gamma = .9)
     losses = []
     encoder = nn.DataParallel(encoder)
     decoder = nn.DataParallel(decoder)
@@ -43,7 +45,7 @@ if train == True:
     startTime = datetime.datetime.now()
     for epoch in range(epochs):
         for row, item in enumerate(dataLoader):
-            inputTensor, targetTensor = item[0].view(-1, 1).to(device), item[1].view(-1, 1).to(device)
+            inputTensor, targetTensor = item[0].view( -1, 1).to(device), item[1].view( -1, 1).to(device)
             loss = 0
             print('Item #{}/{} \t Epoch {}/{}'.format(row+1, len(trainingData), epoch+1, epochs))
             
@@ -68,7 +70,8 @@ if train == True:
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = targetTensor[targetLetter]
-                    if decoderInput.item() == 1:
+                    if decoderInput.item() == de.EOS:
+                        decodedString.append('/end/')
                         break
                     decodedString.append(de.idx2word[decoderInput.item()])
             else:  # no teacher forcing, outputs are fed as inputs of decoder 
@@ -84,24 +87,34 @@ if train == True:
             print('Translated sentence: \t', ' '.join(decodedString))
 
             loss.backward()
-            nn.utils.clip_grad_norm(decoder.parameters(), 5)
+            nn.utils.clip_grad_norm_(decoder.parameters(), 10)
             encoderOptim.step()
             decoderOptim.step()
 
             if row % recordInterval == 0:
                 losses.append(loss)
             print('Loss: \t\t', loss.item(), '\n')
-    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, de)
-    print('Final loss: \t', losses[-1].item())
+        encoderScheduler.step()
+        decoderScheduler.step()
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
     print('Elapsed time: \t', elapsedTime)
-    plt.plot(losses, label = "Losses")
-    plt.show()
-    plt.savefig('results.png')
     print('Writing models to disk...')
     torch.save(encoder, 'encoder.pt')
     torch.save(decoder, 'decoder.pt')
+    settingsDict = {
+            'maxWords' : maxWords,
+            'size' : size,
+            'vocabSize' : vocabSize,
+            'hSize' : hSize,
+            'layers' : layers,
+            'batch' : batch
+            }
     print('Models saved to disk.')
+    print('Final loss: \t', losses[-1].item())
+    plt.plot(losses, label = "Losses")
+    plt.show()
+    plt.savefig('results.png')
+    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, de)
 
 
