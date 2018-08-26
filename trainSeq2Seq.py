@@ -3,16 +3,28 @@ import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-maxWords = 15
-size = 100
-vocabSize = 10
-hSize = 256
-layers = 3
+size = 5000
+dataSentenceLength = 15
+maxWords = dataSentenceLength + 5
+hSize = 128
+layers = 2
 batch = 1
+reverse = True
 
-trainingData, eng, de = dataUtils.loadEnDe(size, vocabSize)
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 8, batch_size = batch)
-testData = dataUtils.loadTestEnDe(vocabSize)[:100]
+engBible = 'data/inupiaq/bible_eng_bpe'
+ipqBible = 'data/inupiaq/bible_ipq_bpe'
+
+if reverse:
+    dataSet, testLang, targetLang = dataUtils.loadTrainingData(size, dataSentenceLength, ipqBible, engBible, 'ipq', 'eng')
+    print('Translating from {} to {}'.format(ipq.name, eng.name))
+else:
+    dataSet, testLang, targetLang = dataUtils.loadTrainingData(size, dataSentenceLength, engBible, ipqBible, 'eng', 'ipq')
+    print('Translating from {} to {}'.format(eng.name, ipq.name))
+
+trainingData = torch.utils.data.Subset(dataSet, range(0, len(dataSet)-200))
+#valData = torch.utils.data.Subset(dataSet, [-200:-100])
+#testData = torch.utils.data.Subset(dataSet, [-100:])
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 1, batch_size = batch)
 
 train = True
 cuda = False
@@ -32,8 +44,8 @@ if train == True:
         device = torch.device('cpu')
         print('PROCESSING WITH CPU')
 
-    encoder = seq2seq.encoder(eng.nWords+1, hiddenSize=hSize, lr = .01, numLayers = layers, batchSize = batch).to(device)
-    decoder = seq2seq.attnDecoder(de.nWords+1, hiddenSize=hSize, lr = .01, dropoutProb = .001, maxLength=maxWords, numLayers = layers).to(device)
+    encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=hSize, lr = .05, numLayers = layers, batchSize = batch).to(device)
+    decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=hSize, lr = .05, dropoutProb = .001, maxLength=maxWords, numLayers = layers).to(device)
     encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
     decoderOptim = torch.optim.SGD(decoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
     encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
@@ -59,7 +71,7 @@ if train == True:
                 encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
                 encoderOutputs[inputLetter] = encoderOutput[0,0]
             
-            decoderInput = torch.tensor([[de.SOS]]).to(device)
+            decoderInput = torch.tensor([[targetLang.SOS]]).to(device)
             decoderHidden = encoderHidden
 
             teacherForce = True if random.random() < teacherForceRatio else False
@@ -70,20 +82,20 @@ if train == True:
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = targetTensor[targetLetter]
-                    if decoderInput.item() == de.EOS:
+                    if decoderInput.item() == targetLang.EOS:
                         decodedString.append('/end/')
                         break
-                    decodedString.append(de.idx2word[decoderInput.item()])
+                    decodedString.append(targetLang.idx2word[decoderInput.item()])
             else:  # no teacher forcing, outputs are fed as inputs of decoder 
                 for targetLetter in range(targetTensor.shape[0]):
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     topv, topi = decoderOutput.topk(1)
                     loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                     decoderInput = topi.squeeze().detach()
-                    if decoderInput.item() == de.EOS:
+                    if decoderInput.item() == targetLang.EOS:
                         decodedString.append('/end/')
                         break
-                    decodedString.append(de.idx2word[decoderInput.item()])
+                    decodedString.append(targetLang.idx2word[decoderInput.item()])
             print('Translated sentence: \t', ' '.join(decodedString))
 
             loss.backward()
@@ -105,16 +117,17 @@ if train == True:
     settingsDict = {
             'maxWords' : maxWords,
             'size' : size,
-            'vocabSize' : vocabSize,
             'hSize' : hSize,
             'layers' : layers,
-            'batch' : batch
+            'reverse' : reverse
             }
+    with open('params.json', 'w+') as params:
+        json.dump(settingsDict, params)
     print('Models saved to disk.')
     print('Final loss: \t', losses[-1].item())
     plt.plot(losses, label = "Losses")
     plt.show()
     plt.savefig('results.png')
-    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, de)
+#    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, eng, ipq)
 
 

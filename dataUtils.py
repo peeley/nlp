@@ -51,89 +51,45 @@ def constructPokemon():
     nameFrame['Name'] = nameFrame['Name'].astype(str) + '>'
     return nameFrame['Name']
 
-def loadEnglishSpanish():
-    corpus = pd.read_csv('data/spa-eng/spa.txt', sep = '\t', lineterminator = '\n', names = ['eng','spa'])
-    eng = langModel.langModel('english')
-    spa = langModel.langModel('spanish')
-
-    for row in range(corpus.shape[0]):
-        eng.addSentence(langModel.normalize(corpus.iloc[row]['eng']))
-        spa.addSentence(langModel.normalize(corpus.iloc[row]['spa']))
-    return corpus, eng, spa
-
-def loadInupiaqBible():
-    print('Loading parallel texts...')
-    data = pd.read_csv('data/inupiaq/bible.csv', names = ['eng', 'ipq'])
-    eng = langModel.langModel('english')
-    ipq = langModel.langModel('inupiaq')
-    print('Parallel texts loaded, constructing language...')
-    for row in range(data.shape[0]):
-        eng.addSentence(langModel.normalize(data.iloc[row]['eng']))
-        ipq.addSentence(langModel.normalize(data.iloc[row]['ipq']))
-    print('Language constructed.')
-    return data, eng, ipq 
-
-def loadIpqDicts():
-    print('Creating new dataframe...')
-    frame = pd.DataFrame(columns = ['eng', 'ipq'])
-    index = 0
-    eng = langModel.langModel('english')
-    ipq = langModel.langModel('inupiaq')
-    with open('data/inupiaq/seiler_ipq_bpe.txt') as ipqFile:
-        for line in ipqFile:
-            line = line.strip('\n')
-            ipq.addSentence(langModel.normalize(line))
-            frame.loc[index, 'ipq'] = line
-            index += 1
-    index = 0
-    with open('data/inupiaq/seiler_eng_bpe.txt') as engFile:
-        for line in engFile:
-            line = line.strip('\n')
-            eng.addSentence(langModel.normalize(line))
-            frame.loc[index, 'eng'] = line
-            index += 1
-    frame.to_csv('data/inupiaq/maclean.csv')
-    return frame, eng, ipq
-
-def loadEnDe(vocabSize, words):
+def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLangName, targetLangName):
     print('Creating dataset...')
-    frame = pd.DataFrame(columns = ['eng', 'de'])
+    testLang = langModel.langModel(testLangName)
+    targetLang = langModel.langModel(targetLangName)
+    frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
     index = 0
-    eng = langModel.langModel('eng')
-    de = langModel.langModel('de')
-    deFile = open('data/de-en/train.tok.clean.bpe.32000.de', encoding = 'utf8')
-    engFile = open('data/de-en/train.tok.clean.bpe.32000.en', encoding = 'utf8')
+    testFile = open(testFilename, encoding = 'utf8')
+    targetFile = open(targetFilename, encoding = 'utf8')
     print('Creating language models...')
-    for deLine, engLine in zip(deFile, engFile):
+    for testLine, targetLine in zip(testFile, targetFile):
         if index == vocabSize:
             break
-        deLine = deLine.strip('\n')
-        engLine = engLine.strip('\n')
-        de.addSentence(langModel.normalize(deLine))
-        eng.addSentence(langModel.normalize(engLine))
-        if len(deLine.split()) < words and len(engLine.split()) < words:
-            frame.loc[index, 'de'] = deLine
-            frame.loc[index, 'eng'] = engLine
+        targetLine = targetLine.strip('\n')
+        testLine = testLine.strip('\n')
+        targetLang.addSentence(langModel.normalize(targetLine))
+        testLang.addSentence(langModel.normalize(testLine))
+        if len(targetLine.split()) < words and len(testLine.split()) < words:
+            frame.loc[index, targetLang.name] = targetLine
+            frame.loc[index, testLang.name] = testLine
             index += 1
     print('Creation complete, ', index, ' lines.')
-    deFile.close()
-    engFile.close()
+    targetFile.close()
+    testFile.close()
     frame.to_csv('data/de-en/de-en.csv')
-    dataset = LangDataset(frame, eng, de, words)
-    return dataset, eng, de 
+    dataset = LangDataset(frame, testLang, targetLang, words)
+    return dataset, testLang, targetLang
 
-def loadTestEnDe(size):
+def loadTestData(size, testFilename, targetFilename, testLang, targetLang):
     index = 0
-    frame = pd.DataFrame(columns = ['eng', 'de'])
-    deFile = open('data/de-en/newstest2012.tok.bpe.32000.de')
-    engFile = open('data/de-en/newstest2012.tok.bpe.32000.en')
+    frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
+    targetFile = open(targetFileName)
+    testFile = open(testFileName)
     print('Creating test dataset...')
-    for deLine, engLine in zip(deFile, engFile):
-        deLine = deLine.strip('\n')
-        engLine = engLine.strip('\n')
-        if len(deLine.split()) < size and len(engLine.split()) < size:
-            frame.loc[index, 'de'] = deLine
-            frame.loc[index, 'eng'] = engLine
+    for testLine, targetLine in zip(testfile, targetFile):
+        targetLine = targetLine.strip('\n')
+        testLine = testLine.strip('\n')
+        if len(targetLine.split()) < size and len(testLine.split()) < size:
+            frame.loc[index, targetLang.name] = targetLine
+            frame.loc[index, testLang.name] = testLine
             index += 1
     print('Creation complete.')
     deFile.close()

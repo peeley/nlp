@@ -1,11 +1,13 @@
-import torch, seq2seq, langModel, dataUtils
+import torch, seq2seq, langModel, dataUtils, json
 import pandas as pd
 from nltk.translate.bleu_score import sentence_bleu
 
-def evaluate(encoder, decoder, rawString, testLang, targetLang, testTarget = None):
-    hSize = 128
-    maxWords = 15
-    layers = 4
+def evaluate(encoder, decoder, rawString, testLang, targetLang):
+    with open('params.json') as paramsFile:
+        params = json.load(paramsFile)
+    hSize = params['hSize']
+    maxWords = params['maxWords']
+    layers = params['layers']
     cuda = False
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -75,13 +77,15 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
 
 
 if __name__ == '__main__':
-    corpus, eng, de = dataUtils.loadEnDe(1000)
+    engBible = 'data/inupiaq/bible_eng_bpe'
+    ipqBible = 'data/inupiaq/bible_ipq_bpe'
+    corpus, eng, ipq = dataUtils.loadTrainingData(5000, 15, ipqBible, engBible, 'ipq', 'eng')
 
     while True:
         testString = input('Enter text to be translated: ')
         testData = [testString]
         savedEncoder = torch.load('encoder.pt')
         savedDecoder = torch.load('decoder.pt')
-        translated = evaluate(savedEncoder, savedDecoder, testData, eng, de)
+        translated = evaluate(savedEncoder, savedDecoder, testData, eng, ipq)
         printableTranslated = ' '.join(translated).encode('utf8')
 
