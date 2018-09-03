@@ -1,7 +1,7 @@
 from  bs4 import BeautifulSoup
 import pandas as pd
-import requests, re
-
+import requests, re, random
+from unidecode import unidecode
 
 def scrapePage(url, book, chapter, langCode, exclusions):
     try:
@@ -48,18 +48,21 @@ def scrapePage(url, book, chapter, langCode, exclusions):
     return lines, exclusions
 
 
+def stripLine(line):
+    line  = re.sub(u'[\u201c\u201d]','', line)
+    line  = line.replace('"', '')
+    line  = re.sub('([.,!?()])', r' \1 ', line)
+    line  = re.sub('\s{2,}', ' ', line)
+    return line
 
-def transcribeLines(lines, exclusions, frame, lang, idx):
+def transcribeLines(lines, exclusions, file, lang):
     for key in lines:
         if key in exclusions:
-            print('\tSkipping excluded verse {} in {}'.format(key, lang))
+            print('\tSkipping verse {} in {}'.format(key, lang))
         else:
             print('\tWriting verse {} in {}'.format(key, lang))
             string = key + ': ' + lines[key] + '\n'
-            frame.loc[idx, (lang+'Verse')] = lines[key]
-            frame.loc[idx, (lang+'Num')]   = key
-            idx += 1
-    return frame
+            file.write(stripLine(lines[key]) + '\n')
 
 
 def scrapeBible():
@@ -67,7 +70,16 @@ def scrapeBible():
 
     engLines = {}
     ipqLines = {}
-    dataFrame = pd.DataFrame(columns = ['engNum', 'engVerse', 'ipqNum', 'ipqVerse'])
+    engFileName = 'bible_eng'
+    ipqFileName = 'bible_ipq'
+    engFile     = open(engFileName, 'w+')
+    ipqFile     = open(ipqFileName, 'w+')
+    engValFile  = open(engFileName + '_val', 'w+')
+    ipqValFile  = open(ipqFileName + '_val', 'w+')
+    engTestFile = open(engFileName + '_test', 'w+')
+    ipqTestFile = open(ipqFileName + '_test', 'w+')
+    validate = False
+    test = False
     for book in books:
         for chapter in range(1, books[book]+1):
             try:
@@ -75,34 +87,30 @@ def scrapeBible():
                 engBibleURL = 'https://www.bible.com/bible/392/'  + book + '.' + str(chapter)
                 print('\nWriting {} chapter {}:'.format(book, chapter))
 
-                idx = len(dataFrame)
                 exclusions = []
                 ipqLines, exclusions = scrapePage(ipqBibleURL, book, chapter, 'esi', exclusions)
                 engLines, exclusions = scrapePage(engBibleURL, book, chapter, 'eng', exclusions)
-                dataFrame = transcribeLines(engLines, exclusions, dataFrame, 'eng', idx)
-                dataFrame = transcribeLines(ipqLines, exclusions, dataFrame, 'ipq', idx)
+                prob = random.random()
+                if prob < .03:
+                    transcribeLines(engLines, exclusions, engTestFile, 'eng')
+                    transcribeLines(ipqLines, exclusions, ipqTestFile, 'ipq')
+                elif prob > .03 and prob < .06:
+                    transcribeLines(engLines, exclusions, engValFile, 'eng')
+                    transcribeLines(ipqLines, exclusions, ipqValFile, 'ipq')
+                else:
+                    transcribeLines(engLines, exclusions, engFile, 'eng')
+                    transcribeLines(ipqLines, exclusions, ipqFile, 'ipq')
             except ValueError:
                 print('\nSkipping {} chapter {}:'.format(book, chapter))
                 continue
-
-    #dataFrame.to_csv('bible.csv')
-    print('\nData saved as CSV.')
-    return dataFrame
-
-def writeToFile(frame, targetFilename, testFilename):
-    print('Writing CSV to text files {}, {}'.format(targetFilename, testFilename))
-    targetFile = open(targetFilename, 'w+')
-    testFile   = open(testFilename, 'w+')
-    for idx, row in frame.iterrows():
-        targetFile.write(str(row['engVerse']) + '\n')
-        testFile.write(  str(row['ipqVerse']) + '\n')
-    print('Text files written, {} lines.'.format(idx))
-    targetFile.close()
-    testFile.close()
+    engFile.close()
+    ipqFile.close()
+    engTestFile.close()
+    ipqTestFile.close()
+    print('\nData written to file.\n')
 
 if __name__ == '__main__':
-    frame = scrapeBible()
-    writeToFile(frame, 'bible_eng.txt', 'bible_ipq.txt')
+    scrapeBible()
 
 
 

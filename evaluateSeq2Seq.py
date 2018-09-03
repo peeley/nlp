@@ -5,9 +5,10 @@ from nltk.translate.bleu_score import sentence_bleu
 def evaluate(encoder, decoder, rawString, testLang, targetLang):
     with open('params.json') as paramsFile:
         params = json.load(paramsFile)
-    hSize = params['hSize']
+    hSize    = params['hSize']
     maxWords = params['maxWords']
-    layers = params['layers']
+    layers   = params['layers']
+
     cuda = False
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -58,7 +59,7 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
         print('--- TESTING BLEU SCORES ---')
         for index, line in testData.iterrows():
             testLine    = line[testLang.name]
-            targetLine  = langModel.normalize(line[targetLang.name])
+            targetLine  = line[targetLang.name]
             decodedString = evaluate(encoder, decoder, [testLine], testLang, targetLang)
             if '' in decodedString:
                 decodedString = list(filter(None, decodedString))

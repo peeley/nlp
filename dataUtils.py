@@ -78,22 +78,21 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLangNam
     dataset = LangDataset(frame, testLang, targetLang, words)
     return dataset, testLang, targetLang
 
-def loadTestData(size, testFilename, targetFilename, testLang, targetLang):
+def loadTestData(testFileName, targetFileName, testLang, targetLang):
     index = 0
     frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
     targetFile = open(targetFileName)
     testFile = open(testFileName)
     print('Creating test dataset...')
-    for testLine, targetLine in zip(testfile, targetFile):
+    for testLine, targetLine in zip(testFile, targetFile):
         targetLine = targetLine.strip('\n')
         testLine = testLine.strip('\n')
-        if len(targetLine.split()) < size and len(testLine.split()) < size:
-            frame.loc[index, targetLang.name] = targetLine
-            frame.loc[index, testLang.name] = testLine
-            index += 1
+        frame.loc[index, targetLang.name] = targetLine
+        frame.loc[index, testLang.name] = testLine
+        index += 1
     print('Creation complete.')
-    deFile.close()
-    engFile.close()
+    testFile.close()
+    targetFile.close()
     return frame
 
 def unicodeToAscii(s):
