@@ -15,29 +15,26 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang):
         encoder.to(device)
         decoder.to(device)
         cuda = True
+    else:
+        device = torch.device('cpu')
+        cuda = False
     with torch.no_grad():
         for item in range(len(rawString)):
             inputString = langModel.expandContractions(langModel.normalize(rawString[item]))
             print('\nTest sentence: \t', inputString)
-            inputSentence = langModel.tensorFromSentence(testLang, inputString, False).view(-1,1)
-            if cuda:
-                inputSentence = inputSentence.cuda()
+            inputSentence = langModel.tensorFromSentence(testLang, inputString, False).view(-1,1).to(device)
             if inputSentence.shape[0] == 1:
                 if inputSentence.item() == -1:
                     return ['NONE']
 
             inputLength = len(inputSentence)
             encoderHidden = seq2seq.initHidden(cuda, hSize, layers * 2)
-            encoderOutputs = torch.zeros(maxWords, hSize * 2)
-            if cuda:
-                encoderOutpus = encoderOutputs.to(device)
+            encoderOutputs = torch.zeros(maxWords, hSize * 2).to(device)
             for word in range(inputSentence.shape[0]):
                 encoderOutput, encoderHidden = encoder(inputSentence[word], encoderHidden)
                 encoderOutputs[word] = encoderOutput[0,0]
 
-            decoderInput = torch.tensor([[targetLang.SOS]])
-            if cuda:
-                decoderInput = decoderInput.to(device)
+            decoderInput = torch.tensor([[targetLang.SOS]]).to(device)
             decoderHidden = encoderHidden
             decodedWords = []
             
@@ -85,8 +82,12 @@ if __name__ == '__main__':
     while True:
         testString = input('Enter text to be translated: ')
         testData = [testString]
-        savedEncoder = torch.load('encoder.pt')
-        savedDecoder = torch.load('decoder.pt')
+        if torch.cuda.is_available():
+            device = torch.device('cuda')
+        else:
+            device = torch.device('cpu')
+        savedEncoder = torch.load('encoder.pt', map_location = device)
+        savedDecoder = torch.load('decoder.pt', map_location = device)
         translated = evaluate(savedEncoder, savedDecoder, testData, eng, ipq)
         printableTranslated = ' '.join(translated).encode('utf8')
 

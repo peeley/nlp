@@ -74,7 +74,7 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLangNam
     print('Creation complete, ', index, ' lines.')
     targetFile.close()
     testFile.close()
-    frame.to_csv('data/de-en/de-en.csv')
+    frame.to_csv('data/inupiaq/data.csv')
     dataset = LangDataset(frame, testLang, targetLang, words)
     return dataset, testLang, targetLang
 
