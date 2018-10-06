@@ -73,8 +73,6 @@ def tensorFromSentence(lang, sentence,  length):
     idx = idxFromSentence(lang, sentence)
     if idx == -1:
         return torch.Tensor([-1])
-    #while len(idx) < length:
-    #    idx.append(lang.EOS)
     return torch.tensor(idx, dtype = torch.long).view(-1,1)
 
 def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length):

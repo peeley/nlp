@@ -1,4 +1,4 @@
-import torch, seq2seq, langModel, dataUtils, json
+import torch, seq2seq, langModel, dataUtils, json, pickle
 import pandas as pd
 from nltk.translate.bleu_score import sentence_bleu
 
@@ -23,9 +23,6 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang):
             inputString = langModel.expandContractions(langModel.normalize(rawString[item]))
             print('\nTest sentence: \t', inputString)
             inputSentence = langModel.tensorFromSentence(testLang, inputString, False).view(-1,1).to(device)
-            if inputSentence.shape[0] == 1:
-                if inputSentence.item() == -1:
-                    return ['NONE']
 
             inputLength = len(inputSentence)
             encoderHidden = seq2seq.initHidden(cuda, hSize, layers * 2)
@@ -75,19 +72,27 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
 
 
 if __name__ == '__main__':
-    engBible = 'data/inupiaq/bible_eng_bpe'
-    ipqBible = 'data/inupiaq/bible_ipq_bpe'
-    corpus, eng, ipq = dataUtils.loadTrainingData(5000, 15, ipqBible, engBible, 'ipq', 'eng')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    print('\nEvaluating with device ', device)
+    print('Loading saved models...')
+    savedEncoder = torch.load('encoder.pt', map_location = device)
+    savedDecoder = torch.load('decoder.pt', map_location = device)
+    print('Saved models loaded.')
+    with open('params.json') as paramsFile:
+        params = json.load(paramsFile)
+    print('Loading language models...')
+    with open('eng.p', 'rb') as engFile:
+        eng = pickle.load(engFile)
+    with open('ipq.p', 'rb') as ipqFile:
+        ipq = pickle.load(ipqFile)
+    print('Language models loaded.')
 
     while True:
         testString = input('Enter text to be translated: ')
         testData = [testString]
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        else:
-            device = torch.device('cpu')
-        savedEncoder = torch.load('encoder.pt', map_location = device)
-        savedDecoder = torch.load('decoder.pt', map_location = device)
         translated = evaluate(savedEncoder, savedDecoder, testData, eng, ipq)
         printableTranslated = ' '.join(translated).encode('utf8')
 

@@ -1,16 +1,16 @@
-import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json
+import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle
 import pandas as pd
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-size = -1
-epochs = 30
-dataSentenceLength = 20
-maxWords = 100
-hSize = 128
-layers = 2
-batch = 1
-reverse = False
+size = 10                   # dataset size
+epochs = 1                  # training epochs
+dataSentenceLength = 20     # length of sentences in dataset
+maxWords = 100              # max length input of encoder
+hSize = 128                 # hidden size of encoder/decoder
+layers = 2                  # layers of network for encoder/decoder
+batch = 1                   # batch size. TODO: find out how to use batch input.
+reverse = False             # False if translating english -> inupiaq.
 
 engBible = 'data/inupiaq/bible_eng_bpe'
 ipqBible = 'data/inupiaq/bible_ipq_bpe'
@@ -111,20 +111,31 @@ if train == True:
         decoderScheduler.step()
     endTime = datetime.datetime.now()
     elapsedTime = endTime - startTime
-    torch.save(encoder, 'encoder.pt')
-    torch.save(decoder, 'decoder.pt')
     settingsDict = {
             'maxWords' : maxWords,
             'hSize' : hSize,
             'layers' : layers,
+            'size' : size,
+            'dataSentenceLength' : dataSentenceLength
             }
     with open('params.json', 'w+') as params:
+        print('\nWriting parameters to disk...')
         json.dump(settingsDict, params)
-    print('Models saved to disk.')
-    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
+        print('Saved parameters to disk.')
+
+    print('Writing language models to disk...')
+    with open('eng.p', 'wb') as engFile:
+        pickle.dump(testLang, engFile)
+    with open('ipq.p', 'wb') as ipqFile:
+        pickle.dump(targetLang, ipqFile)
+    print('Language models saved to disk.')
+    print('Writing models to disk...')
+    torch.save(encoder, 'encoder.pt')
+    torch.save(decoder, 'decoder.pt')
+    print('Models saved to disk.\n')
+    #evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
     print('Final loss: \t', losses[-1].item())
     print('Elapsed time: \t', elapsedTime)
-    print('Writing models to disk...')
     plt.plot(losses, label = "Losses")
     plt.show()
     plt.savefig('results.png')
