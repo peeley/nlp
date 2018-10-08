@@ -6,7 +6,7 @@ class langModel:
         self.name = name
         self.word2idx = {}
         self.word2count = {}
-        self.idx2word = {0: '/start/', 1:'/end/'}
+        self.idx2word = {-1: '/rare/', 0: '/start/', 1:'/end/'}
         self.idx2word = {}
         self.nWords = 2
         self.EOS = 1
@@ -56,28 +56,22 @@ class langModel:
         else:
             self.word2count[word] += 1
 
-def idxFromSentence(lang, sentence):
+def tensorFromSentence(lang, sentence):
     indices = []
+    rareWords = []
     for word in sentence.split(' '):
         try:
             indices.append(lang.word2idx[word])
         except KeyError as e:
-            lang.word2idx[word] = lang.nWords
-            lang.word2count[word] = 1
-            lang.idx2word[lang.nWords] = word
-            indices.append(lang.nWords)
+            rareWords.append(word)
             print('WARNING - Word not in vocabulary: ', word)
-    return indices
+            indices.append(-1)
+    indices = torch.tensor(indices, dtype = torch.long).view(-1,1)
+    return indices, rareWords
 
-def tensorFromSentence(lang, sentence,  length):
-    idx = idxFromSentence(lang, sentence)
-    if idx == -1:
-        return torch.Tensor([-1])
-    return torch.tensor(idx, dtype = torch.long).view(-1,1)
-
-def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length):
-    input = tensorFromSentence(inputLang, inputSentence, length)
-    target = tensorFromSentence(outputLang, outputSentence, length)
+def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence):
+    input = tensorFromSentence(inputLang, inputSentence)[0]
+    target = tensorFromSentence(outputLang, outputSentence)[0]
     return input, target
 
 def normalize(s):

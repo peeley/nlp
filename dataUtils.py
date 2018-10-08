@@ -19,7 +19,7 @@ class LangDataset(torch.utils.data.Dataset):
         print('Encoding sentence: \t', testLine)
         targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
         print('Target setnence: \t', targetLine)
-        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine, self.length)
+        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine)
         return (testTensor, targetTensor)
 
 def constructJoke():
