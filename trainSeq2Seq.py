@@ -133,7 +133,7 @@ if train == True:
     torch.save(encoder, 'encoder.pt')
     torch.save(decoder, 'decoder.pt')
     print('Models saved to disk.\n')
-    #evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
+    evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
     print('Final loss: \t', losses[-1].item())
     print('Elapsed time: \t', elapsedTime)
     plt.plot(losses, label = "Losses")

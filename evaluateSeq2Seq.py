@@ -37,18 +37,19 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang):
             decodedWords = []
             
             for letter in range(maxWords):
-                decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                print(decoderOutput)
-                topv, topi = decoderOutput.data.topk(1)
-                if topi.item() == 1:
-                    break
-                elif topi.item() == -1:
-                    decodedWords.append('/rare/') # TODO: fix rare word handling
+                if letter in rareWords.keys():
+                    decodedWords.append(rareWords[letter])
                 else:
-                    decodedWords.append(targetLang.idx2word[topi.item()])
-                decoderInput = topi.squeeze().detach()
+                    decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+                    topv, topi = decoderOutput.data.topk(1)
+                    if topi.item() == 1:
+                        break
+                    elif topi.item() == -1:
+                        decodedWords.append('/rare/') # TODO: fix rare word handling
+                    else:
+                        decodedWords.append(targetLang.idx2word[topi.item()])
+                    decoderInput = topi.squeeze().detach()
             print('Translated: \t', ' '.join(decodedWords))
-            print('Not translated: \t', rareWords)
             return decodedWords
 
 def testBLEU(testData, encoder, decoder, testLang, targetLang):

@@ -58,14 +58,13 @@ class langModel:
 
 def tensorFromSentence(lang, sentence):
     indices = []
-    rareWords = []
-    for word in sentence.split(' '):
+    rareWords = {}
+    for num, word in enumerate(sentence.split(' ')):
         try:
             indices.append(lang.word2idx[word])
         except KeyError as e:
-            rareWords.append(word)
+            rareWords[num] = word
             print('WARNING - Word not in vocabulary: ', word)
-            indices.append(-1)
     indices = torch.tensor(indices, dtype = torch.long).view(-1,1)
     return indices, rareWords
 

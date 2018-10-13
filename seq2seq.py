@@ -60,9 +60,6 @@ class attnDecoder(nn.Module):
         self.out = nn.Linear(self.hiddenSize*2, self.outputSize)
 
     def forward(self, input, hidden, encoderOutputs):
-        if input.item() == -1:
-            print('decoding rare word')
-            return -1, hidden
         embed = self.embed(input).view(1, self.batchSize, -1)
         embed = self.dropout(embed)
         hidden = (hidden[0].view(self.numLayers, self.batchSize, self.hiddenSize * 2), 
