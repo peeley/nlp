@@ -1,23 +1,26 @@
+#!/usr/bin/python
+
 import torch, seq2seq, langModel, dataUtils, json, pickle
 import pandas as pd
 from nltk.translate.bleu_score import sentence_bleu
 
-def evaluate(encoder, decoder, rawString, testLang, targetLang):
-    with open('params.json') as paramsFile:
-        params = json.load(paramsFile)
-    hSize    = params['hSize']
-    maxWords = params['maxWords']
-    layers   = params['layers']
+with open('params.json') as paramsFile:
+    params = json.load(paramsFile)
+hSize    = params['hSize']
+maxWords = params['maxWords']
+layers   = params['layers']
 
+cuda = False
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+    encoder.to(device)
+    decoder.to(device)
+    cuda = True
+else:
+    device = torch.device('cpu')
     cuda = False
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-        encoder.to(device)
-        decoder.to(device)
-        cuda = True
-    else:
-        device = torch.device('cpu')
-        cuda = False
+
+def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
     with torch.no_grad():
         for item in range(len(rawString)):
             inputString = langModel.expandContractions(langModel.normalize(rawString[item]))
@@ -43,9 +46,10 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang):
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     topv, topi = decoderOutput.data.topk(1)
                     if topi.item() == 1:
+                        decodedWords.append('/end/')
                         break
                     elif topi.item() == -1:
-                        decodedWords.append('/rare/') # TODO: fix rare word handling
+                        decodedWords.append('/rare/')
                     else:
                         decodedWords.append(targetLang.idx2word[topi.item()])
                     decoderInput = topi.squeeze().detach()

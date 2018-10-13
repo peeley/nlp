@@ -8,14 +8,11 @@ class encoder(nn.Module):
         self.inputSize = inputSize
         self.numLayers = numLayers
         self.embedding = nn.Embedding(self.inputSize, self.hiddenSize)
-        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, bidirectional = True, num_layers=numLayers, batch_first = False)
+        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, bidirectional = True, num_layers=numLayers, batch_first = True)
         self.lr = lr
         self.batchSize = batchSize
 
     def forward(self, input, hidden):
-        if input == -1: # rare word edge case
-            output = [[torch.tensor(-1)]]
-            return output, hidden
         embed = self.embedding(input)
         embed = embed.view(1, self.batchSize, self.hiddenSize)
         output, hidden = self.lstm(embed, hidden)

@@ -4,9 +4,9 @@ import numpy as np
 class langModel:
     def __init__(self, name):
         self.name = name
-        self.word2idx = {}
+        self.word2idx = {'/start/': 0, '/end/':1}
         self.word2count = {}
-        self.idx2word = {-1: '/rare/', 0: '/start/', 1:'/end/'}
+        self.idx2word = {0: '/start/', 1:'/end/'}
         self.idx2word = {}
         self.nWords = 2
         self.EOS = 1
@@ -65,6 +65,7 @@ def tensorFromSentence(lang, sentence):
         except KeyError as e:
             rareWords[num] = word
             print('WARNING - Word not in vocabulary: ', word)
+    indices.append(1)
     indices = torch.tensor(indices, dtype = torch.long).view(-1,1)
     return indices, rareWords
 
