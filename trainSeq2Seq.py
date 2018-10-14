@@ -4,31 +4,34 @@ import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, 
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-size = -1                   # dataset size
-epochs = 1                  # training epochs
+size = 500                   # dataset size
+epochs = 20                 # training epochs
 dataSentenceLength = 10     # length of sentences in dataset
-maxWords = 100              # max length input of encoder
-hSize = 128                 # hidden size of encoder/decoder
-layers = 2                  # layers of network for encoder/decoder
+maxWords = 50               # max length input of encoder
+hSize = 256                 # hidden size of encoder/decoder
+layers = 4                  # layers of network for encoder/decoder
 batch = 1                   # batch size. TODO: find out how to use batch input.
-reverse = False             # False if translating english -> inupiaq.
+lengthSchedule = {0: dataSentenceLength,
+                  (epochs//3): dataSentenceLength + 10, 
+                  (epochs//2): dataSentenceLength + 20, 
+                  (epochs//1.5): dataSentenceLength + 30} # Change length of sentences based on how long we've been training
+lengthScheduling = False
 
-engData = 'data/inupiaq/bible_eng_bpe'
-ipqData = 'data/inupiaq/bible_ipq_bpe'
-engDataVal = 'data/inupiaq/bible_eng_val_bpe'
-ipqDataVal = 'data/inupiaq/bible_ipq_val_bpe'
+engData = 'data/de-en/train.tok.clean.bpe.32000.en'
+ipqData = 'data/de-en/train.tok.clean.bpe.32000.de'
+engDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
+ipqDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
 
-if reverse:
-    trainingData, testLang, targetLang = dataUtils.loadTrainingData(size, dataSentenceLength, ipqData, engData, 'ipq', 'eng')
-else:
-    trainingData, testLang, targetLang = dataUtils.loadTrainingData(size, dataSentenceLength, engData, ipqData, 'eng', 'ipq')
-print('Translating from {} to {}'.format(testLang.name, targetLang.name))
+testLang = langModel.langModel('eng')
+targetLang = langModel.langModel('ipq')
+
+trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, engData, ipqData, testLang, targetLang)
 
 testData = dataUtils.loadTestData(engDataVal, ipqDataVal, testLang, targetLang) 
 dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = batch)
 
 cuda = False
-recordInterval = 25
+recordInterval = 8
 teacherForceRatio = .2
 loss_fn = nn.NLLLoss()
 bleuScores = []
@@ -52,6 +55,13 @@ decoder = nn.DataParallel(decoder)
 
 startTime = datetime.datetime.now()
 for epoch in range(epochs):
+    if lengthScheduling:
+        if epoch in lengthSchedule.keys():
+            print("Increasing sentence length")
+            dataSentenceLength = lengthSchedule[epoch]
+            trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, engData, ipqData, testLang, targetLang)
+            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = batch)
+            print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()
         inputTensor, targetTensor = item[0].view( -1, 1).to(device), item[1].view( -1, 1).to(device)
@@ -73,25 +83,20 @@ for epoch in range(epochs):
         teacherForce = True if random.random() < teacherForceRatio else False
 
         decodedString = []
-        if teacherForce: # teacher forcing, letters of target sentence are next input of decoder
-            for targetLetter in range(targetTensor.shape[0]):
-                decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                loss += loss_fn(decoderOutput, targetTensor[targetLetter])
+        for targetLetter in range(targetTensor.shape[0]):
+            decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+            thisLoss = loss_fn(decoderOutput, targetTensor[targetLetter])
+            loss += thisLoss
+            if teacherForce:
                 decoderInput = targetTensor[targetLetter]
-                if decoderInput.item() == targetLang.EOS:
-                    decodedString.append('/end/')
-                    break
-                decodedString.append(targetLang.idx2word[decoderInput.item()])
-        else:  # no teacher forcing, outputs are fed as inputs of decoder 
-            for targetLetter in range(targetTensor.shape[0]):
-                decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+            else:
                 topv, topi = decoderOutput.topk(1)
-                loss += loss_fn(decoderOutput, targetTensor[targetLetter])
                 decoderInput = topi.squeeze().detach()
-                if decoderInput.item() == targetLang.EOS:
-                    decodedString.append('/end/')
-                    break
-                decodedString.append(targetLang.idx2word[decoderInput.item()])
+            if decoderInput.item() == targetLang.EOS:
+                decodedString.append('/end/')
+                loss += thisLoss * (targetTensor.shape[0] - targetLetter) # increase loss for each word left out
+                break
+            decodedString.append(targetLang.idx2word[decoderInput.item()])
         print('Translated sentence: \t', ' '.join(decodedString))
 
         loss.backward()
@@ -132,9 +137,9 @@ print('Writing models to disk...')
 torch.save(encoder, 'encoder.pt')
 torch.save(decoder, 'decoder.pt')
 print('Models saved to disk.\n')
-#evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
+evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
 print('Final loss: \t', losses[-1].item())
 print('Elapsed time: \t', elapsedTime)
-plt.plot(losses, label = "Losses")
+plt.plot(losses, label = "Losses", color = 'black')
 plt.show()
 plt.savefig('results.png')

@@ -1,5 +1,7 @@
 import pandas as pd
-import unicodedata, string, torch, langModel, langModel
+import unicodedata, string, torch, langModel, langModel, random
+import torch.utils.data
+from nltk import word_tokenize
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
@@ -16,16 +18,15 @@ class LangDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         testLine = langModel.normalize(self.frame.loc[idx, self.testLang.name])
+        testLine = ' '.join(word_tokenize(testLine))
         print('Encoding sentence: \t', testLine)
         targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
         print('Target setnence: \t', targetLine)
         testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine)
         return (testTensor, targetTensor)
 
-def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLangName, targetLangName):
+def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, targetLang):
     print('Creating dataset...')
-    testLang = langModel.langModel(testLangName)
-    targetLang = langModel.langModel(targetLangName)
     frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
     index = 0
     testFile = open(testFilename, encoding = 'utf8')
@@ -37,7 +38,9 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLangNam
         targetLine = targetLine.strip('\n')
         testLine = testLine.strip('\n')
         targetLang.addSentence(langModel.normalize(targetLine))
-        testLang.addSentence(langModel.normalize(testLine))
+        # Tokenize english with NLTK tokenizer
+        testSent = ' '.join(word_tokenize(langModel.normalize(testLine)))
+        testLang.addSentence(testSent)
         if len(targetLine.split()) < words and len(testLine.split()) < words:
             frame.loc[index, targetLang.name] = targetLine
             frame.loc[index, testLang.name] = testLine
@@ -47,7 +50,7 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLangNam
     testFile.close()
     frame.to_csv('data/inupiaq/data.csv')
     dataset = LangDataset(frame, testLang, targetLang, words)
-    return dataset, testLang, targetLang
+    return dataset
 
 def loadTestData(testFileName, targetFileName, testLang, targetLang):
     index = 0
@@ -66,6 +69,32 @@ def loadTestData(testFileName, targetFileName, testLang, targetLang):
     targetFile.close()
     return frame
 
+def splitData(testFilename, targetFilename):
+    engFile = open(testFilename, 'r')
+    ipqFile = open(targetFilename, 'r')
+    engDataFile = open(testFilename+'_train', 'w+')
+    ipqDataFile = open(targetFilename+'_train', 'w+')
+    engValFile = open(testFilename+'_val', 'w+')
+    ipqValFile = open(targetFilename+'_val', 'w+')
+    engTestFile = open(testFilename+'_test', 'w+')
+    ipqTestFile = open(targetFilename+'_test', 'w+')
+
+    for engLine, ipqLine in zip(engFile, ipqFile):
+        prob = random.random()
+        if prob < .03:
+            engTestFile.write(engLine)
+            ipqTestFile.write(ipqLine)
+        elif prob > .03 and prob < .06:
+            engValFile.write(engLine)
+            ipqValFile.write(ipqLine)
+        else:
+            engDataFile.write(engLine)
+            ipqDataFile.write(ipqLine)
+    engFile.close()     ; ipqFile.close()
+    engDataFile.close() ; ipqDataFile.close()
+    engValFile.close()  ; ipqValFile.close()
+    engTestFile.close() ; ipqTestFile.close()
+
 def unicodeToAscii(s):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
@@ -73,3 +102,5 @@ def unicodeToAscii(s):
         and c in all_letters
     )
 
+if __name__ == '__main__':
+    splitData('data/inupiaq/data_eng', 'data/inupiaq/data_ipq')

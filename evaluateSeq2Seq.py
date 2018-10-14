@@ -23,7 +23,7 @@ else:
 def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
     with torch.no_grad():
         for item in range(len(rawString)):
-            inputString = langModel.expandContractions(langModel.normalize(rawString[item]))
+            inputString = langModel.normalize(rawString[item])
             print('\nTest sentence: \t', inputString)
             inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString)
             inputSentence = inputSentence.view(-1,1).to(device)
@@ -97,7 +97,6 @@ if __name__ == '__main__':
     with open('ipq.p', 'rb') as ipqFile:
         ipq = pickle.load(ipqFile)
     print('Language models loaded.')
-
     while True:
         testString = input('\nEnter text to be translated: ')
         testData = [testString]
