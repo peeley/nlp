@@ -11,28 +11,34 @@ maxWords = 50               # max length input of encoder
 hSize = 256                 # hidden size of encoder/decoder
 layers = 4                  # layers of network for encoder/decoder
 batch = 1                   # batch size. TODO: find out how to use batch input.
+reverse = True
+
+# Change length of sentences based on how long we've been training
 lengthSchedule = {0: dataSentenceLength,
                   (epochs//3): dataSentenceLength + 10, 
                   (epochs//2): dataSentenceLength + 20, 
-                  (epochs//1.5): dataSentenceLength + 30} # Change length of sentences based on how long we've been training
+                  (epochs//1.5): dataSentenceLength + 30} 
 lengthScheduling = False
 
-engData = 'data/de-en/train.tok.clean.bpe.32000.en'
-ipqData = 'data/de-en/train.tok.clean.bpe.32000.de'
-engDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
-ipqDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
+testData = 'data/de-en/train.tok.clean.bpe.32000.en'
+targetData = 'data/de-en/train.tok.clean.bpe.32000.de'
+testDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
+targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
 
 testLang = langModel.langModel('eng')
 targetLang = langModel.langModel('ipq')
+if reverse:
+    testLang, targetLang = targetLang, testLang
+    testData, targetData = targetData, testData
+    testDataVal, targetDataVal = targetDataVal, testDataVal
 
-trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, engData, ipqData, testLang, targetLang)
-
-testData = dataUtils.loadTestData(engDataVal, ipqDataVal, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = batch)
+trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, testData, targetData, testLang, targetLang)
+testData = dataUtils.loadTestData(testDataVal, targetDataVal, testLang, targetLang) 
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 1, batch_size = batch)
 
 cuda = False
 recordInterval = 8
-teacherForceRatio = .2
+teacherForceRatio = .5
 loss_fn = nn.NLLLoss()
 bleuScores = []
 if torch.cuda.is_available():
@@ -43,8 +49,12 @@ else:
     device = torch.device('cpu')
     print('PROCESSING WITH CPU\n')
 
-encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=hSize, lr = .05, numLayers = layers, batchSize = batch).to(device)
-decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=hSize, lr = .05, dropoutProb = .001, maxLength=maxWords, numLayers = layers).to(device)
+encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=hSize, 
+                          lr = .05, numLayers = layers, 
+                          batchSize = batch).to(device)
+decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=hSize, 
+                              lr = .05, dropoutProb = .001, 
+                              maxLength=maxWords, numLayers = layers).to(device)
 encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
 decoderOptim = torch.optim.SGD(decoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
 encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
@@ -59,7 +69,7 @@ for epoch in range(epochs):
         if epoch in lengthSchedule.keys():
             print("Increasing sentence length")
             dataSentenceLength = lengthSchedule[epoch]
-            trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, engData, ipqData, testLang, targetLang)
+            trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, testData, targetData, testLang, targetLang)
             dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
@@ -94,7 +104,6 @@ for epoch in range(epochs):
                 decoderInput = topi.squeeze().detach()
             if decoderInput.item() == targetLang.EOS:
                 decodedString.append('/end/')
-                loss += thisLoss * (targetTensor.shape[0] - targetLetter) # increase loss for each word left out
                 break
             decodedString.append(targetLang.idx2word[decoderInput.item()])
         print('Translated sentence: \t', ' '.join(decodedString))
@@ -128,9 +137,9 @@ with open('params.json', 'w+') as params:
     print('Saved parameters to disk.')
 
 print('Writing language models to disk...')
-with open('eng.p', 'wb') as engFile:
+with open(testLang.name+'.p', 'wb') as engFile:
     pickle.dump(testLang, engFile)
-with open('ipq.p', 'wb') as ipqFile:
+with open(targetLang.name+'.p', 'wb') as ipqFile:
     pickle.dump(targetLang, ipqFile)
 print('Language models saved to disk.')
 print('Writing models to disk...')
