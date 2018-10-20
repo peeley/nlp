@@ -4,8 +4,8 @@ import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, 
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-size = 500                   # dataset size
-epochs = 20                 # training epochs
+size = 100                  # dataset size
+epochs = 10                 # training epochs
 dataSentenceLength = 10     # length of sentences in dataset
 maxWords = 50               # max length input of encoder
 hSize = 256                 # hidden size of encoder/decoder
