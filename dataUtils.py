@@ -5,6 +5,7 @@ from nltk import word_tokenize
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
+nltk.download('punkt')
 
 class LangDataset(torch.utils.data.Dataset):
     def __init__(self, frame, testLang, targetLang, length, transform = None):
