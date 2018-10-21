@@ -1,0 +1,12 @@
+pandas==0.23.4
+Unidecode==1.0.22
+torchtext==0.2.3
+setuptools==40.4.3
+matplotlib==2.2.2
+nltk==3.3
+numpy==1.15.0
+torch==0.4.1.post2
+requests==2.19.1
+beautifulsoup4==4.6.3
+mock==2.0.0
+torchvision==0.2.1
