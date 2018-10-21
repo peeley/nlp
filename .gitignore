@@ -1,9 +1,4 @@
 __pycache__
-encoder.pt
-decoder.pt
 results.png
-params.json
-eng.p
-ipq.p
 keypair.pem
 data
