@@ -22,39 +22,43 @@ else:
 
 def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
     with torch.no_grad():
-        for item in range(len(rawString)):
-            inputString = langModel.normalize(rawString[item])
-            print('\nTest sentence: \t', inputString)
-            inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString)
-            inputSentence = inputSentence.view(-1,1).to(device)
+        try:
+            for item in range(len(rawString)):
+                inputString = langModel.normalize(rawString[item])
+                print('\nTest sentence: \t', inputString)
+                inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString)
+                inputSentence = inputSentence.view(-1,1).to(device)
 
-            inputLength = len(inputSentence)
-            encoderHidden = seq2seq.initHidden(cuda, hSize, layers * 2)
-            encoderOutputs = torch.zeros(maxWords, hSize * 2).to(device)
-            for word in range(inputSentence.shape[0]):
-                encoderOutput, encoderHidden = encoder(inputSentence[word], encoderHidden)
-                encoderOutputs[word] = encoderOutput[0][0]
+                inputLength = len(inputSentence)
+                encoderHidden = seq2seq.initHidden(cuda, hSize, layers * 2)
+                encoderOutputs = torch.zeros(maxWords, hSize * 2).to(device)
+                for word in range(inputSentence.shape[0]):
+                    encoderOutput, encoderHidden = encoder(inputSentence[word], encoderHidden)
+                    encoderOutputs[word] = encoderOutput[0][0]
 
-            decoderInput = torch.tensor([[targetLang.SOS]]).to(device)
-            decoderHidden = encoderHidden
-            decodedWords = []
-            
-            for letter in range(maxWords):
-                if letter in rareWords.keys():
-                    decodedWords.append(rareWords[letter])
-                else:
-                    decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-                    topv, topi = decoderOutput.data.topk(1)
-                    if topi.item() == 1:
-                        decodedWords.append('/end/')
-                        break
-                    elif topi.item() == -1:
-                        decodedWords.append('/rare/')
+                decoderInput = torch.tensor([[targetLang.SOS]]).to(device)
+                decoderHidden = encoderHidden
+                decodedWords = []
+                
+                for letter in range(maxWords):
+                    if letter in rareWords.keys():
+                        decodedWords.append(rareWords[letter])
                     else:
-                        decodedWords.append(targetLang.idx2word[topi.item()])
-                    decoderInput = topi.squeeze().detach()
-            print('Translated: \t', ' '.join(decodedWords))
-            return decodedWords
+                        decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
+                        topv, topi = decoderOutput.data.topk(1)
+                        if topi.item() == 1:
+                            decodedWords.append('/end/')
+                            break
+                        elif topi.item() == -1:
+                            decodedWords.append('/rare/')
+                        else:
+                            decodedWords.append(targetLang.idx2word[topi.item()])
+                        decoderInput = topi.squeeze().detach()
+                print('Translated: \t', ' '.join(decodedWords))
+                return decodedWords
+        except IndexError as e:
+            print('Test sentence longer than max sentence length.')
+            return '    '
 
 def testBLEU(testData, encoder, decoder, testLang, targetLang):
     with torch.no_grad():

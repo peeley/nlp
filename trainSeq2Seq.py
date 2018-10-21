@@ -2,14 +2,14 @@
 
 import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle
 import torch.nn as nn
-import matplotlib.pyplot as plt
 
-size = 100                  # dataset size
+size = 1                    # dataset size
 epochs = 10                 # training epochs
 dataSentenceLength = 10     # length of sentences in dataset
 maxWords = 50               # max length input of encoder
 hSize = 256                 # hidden size of encoder/decoder
 layers = 4                  # layers of network for encoder/decoder
+numWorkers = 8              # number of workers for dataLoader
 batch = 1                   # batch size. TODO: find out how to use batch input.
 reverse = True
 
@@ -34,13 +34,11 @@ if reverse:
 
 trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, testData, targetData, testLang, targetLang)
 testData = dataUtils.loadTestData(testDataVal, targetDataVal, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 1, batch_size = batch)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = numWorkers, batch_size = batch)
 
 cuda = False
-recordInterval = 8
-teacherForceRatio = .5
+teacherForceRatio = .33
 loss_fn = nn.NLLLoss()
-bleuScores = []
 if torch.cuda.is_available():
     device = torch.device('cuda')
     cuda = True
@@ -59,7 +57,6 @@ encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, 
 decoderOptim = torch.optim.SGD(decoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
 encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
 decoderScheduler = torch.optim.lr_scheduler.ExponentialLR(decoderOptim, gamma = .9)
-losses = []
 encoder = nn.DataParallel(encoder)
 decoder = nn.DataParallel(decoder)
 
@@ -70,11 +67,14 @@ for epoch in range(epochs):
             print("Increasing sentence length")
             dataSentenceLength = lengthSchedule[epoch]
             trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, testData, targetData, testLang, targetLang)
-            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = batch)
+            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = numWorkers, batch_size = batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()
         inputTensor, targetTensor = item[0].view( -1, 1).to(device), item[1].view( -1, 1).to(device)
+        inputLine, targetLine = item[2][0], item[3][0]
+        print('Encoding sentence: \t', inputLine)
+        print('Target sentence: \t', targetLine)
         loss = 0
         
         encoderOptim.zero_grad()
@@ -113,8 +113,6 @@ for epoch in range(epochs):
         encoderOptim.step()
         decoderOptim.step()
 
-        if row % recordInterval == 0:
-            losses.append(loss)
         stepEndTime = datetime.datetime.now()
         stepTime = stepEndTime - stepStartTime
         print('Item #{}/{} \t Epoch {}/{}'.format(row+1, len(trainingData), epoch+1, epochs))
@@ -147,8 +145,5 @@ torch.save(encoder, 'encoder.pt')
 torch.save(decoder, 'decoder.pt')
 print('Models saved to disk.\n')
 evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
-print('Final loss: \t', losses[-1].item())
+print('Final loss: \t', loss.item())
 print('Elapsed time: \t', elapsedTime)
-plt.plot(losses, label = "Losses", color = 'black')
-plt.show()
-plt.savefig('results.png')

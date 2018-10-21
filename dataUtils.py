@@ -19,11 +19,9 @@ class LangDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         testLine = langModel.normalize(self.frame.loc[idx, self.testLang.name])
         testLine = ' '.join(word_tokenize(testLine))
-        print('Encoding sentence: \t', testLine)
         targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
-        print('Target setnence: \t', targetLine)
         testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine)
-        return (testTensor, targetTensor)
+        return (testTensor, targetTensor, testLine, targetLine)
 
 def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, targetLang):
     print('Creating dataset...')
