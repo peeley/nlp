@@ -56,7 +56,7 @@ class langModel:
         else:
             self.word2count[word] += 1
 
-def tensorFromSentence(lang, sentence):
+def tensorFromSentence(lang, sentence, length):
     indices = []
     rareWords = {}
     for num, word in enumerate(sentence.split(' ')):
@@ -66,12 +66,14 @@ def tensorFromSentence(lang, sentence):
             rareWords[num] = word
             print('WARNING - Word not in vocabulary: ', word)
     indices.append(1)
+    while len(indices) < (length + 15):
+        indices.append(1)
     indices = torch.tensor(indices, dtype = torch.long).view(-1,1)
     return indices, rareWords
 
-def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence):
-    input = tensorFromSentence(inputLang, inputSentence)[0]
-    target = tensorFromSentence(outputLang, outputSentence)[0]
+def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length):
+    input = tensorFromSentence(inputLang, inputSentence, length)[0]
+    target = tensorFromSentence(outputLang, outputSentence, length)[0]
     return input, target
 
 def normalize(s):

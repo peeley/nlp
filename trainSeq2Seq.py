@@ -36,7 +36,7 @@ if args.reverse:
 
 trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
 testData = dataUtils.loadTestData(testDataVal, targetDataVal, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 16, batch_size = args.batch)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = args.batch)
 
 cuda = False
 teacherForceRatio = .33
@@ -54,7 +54,8 @@ encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=args.hSize,
                           batchSize = args.batch).to(device)
 decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=args.hSize, 
                               lr = .05, dropoutProb = .001, 
-                              maxLength=args.maxWords, numLayers = args.layers).to(device)
+                              maxLength=args.maxWords, numLayers = args.layers,
+                              batchSize = args.batch).to(device)
 encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
 decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9, nesterov = True)
 encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
@@ -66,12 +67,14 @@ for epoch in range(args.epochs):
         if epoch in lengthSchedule.keys():
             print("Increasing sentence length")
             args.dataSentenceLength = lengthSchedule[epoch]
-            trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
-            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = numWorkers, _size = args.batch)
+            trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, 
+                                                      testData, targetData, testLang, targetLang)
+            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, 
+                                                     num_workers = numWorkers, _size = args.batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()
-        inputTensor, targetTensor = item[0].view( -1, 1).to(device), item[1].view( -1, 1).to(device)
+        inputTensor, targetTensor = item[0].to(device), item[1].to(device)
         inputLine, targetLine = item[2][0], item[3][0]
         print('Encoding sentence: \t', inputLine)
         print('Target sentence: \t', targetLine)
@@ -80,22 +83,22 @@ for epoch in range(args.epochs):
         encoderOptim.zero_grad()
         decoderOptim.zero_grad()
 
-        encoderHidden = seq2seq.initHidden(cuda, args.hSize, args.layers*2)
-        encoderOutputs = torch.zeros(args.maxWords, args.hSize * 2).to(device)
-
-        for inputLetter in range(inputTensor.shape[0]):
-            encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
-            encoderOutputs[inputLetter] = encoderOutput[0,0]
+        encoderHidden = seq2seq.initHidden(cuda, args.hSize, args.layers*2, args.batch)
+        encoderOutputs = torch.zeros(args.batch, args.maxWords, args.hSize * 2).to(device)
+        for inputLetter in range(inputTensor.shape[1]):
+            encoderOutput, encoderHidden = encoder(inputTensor[:,inputLetter], encoderHidden)
+            encoderOutputs[:, inputLetter] = encoderOutput[:, 0]
         
-        decoderInput = torch.tensor([[targetLang.SOS]]).to(device)
+        decoderInput = torch.zeros([16, 1], dtype = torch.long).to(device)
         decoderHidden = encoderHidden
 
         teacherForce = True if random.random() < teacherForceRatio else False
 
         decodedString = []
-        for targetLetter in range(targetTensor.shape[0]):
+        print(targetTensor.shape)
+        for targetLetter in range(targetTensor.shape[1]):
             decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
-            thisLoss = loss_fn(decoderOutput, targetTensor[targetLetter])
+            thisLoss = loss_fn(decoderOutput, targetTensor[:, targetLetter])
             loss += thisLoss
             if teacherForce:
                 decoderInput = targetTensor[targetLetter]

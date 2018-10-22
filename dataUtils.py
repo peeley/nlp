@@ -21,7 +21,9 @@ class LangDataset(torch.utils.data.Dataset):
         testLine = langModel.normalize(self.frame.loc[idx, self.testLang.name])
         testLine = ' '.join(nltk.word_tokenize(testLine))
         targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
-        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine)
+        testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, 
+                                                            testLine, targetLine,
+                                                            self.length)
         return (testTensor, targetTensor, testLine, targetLine)
 
 def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, targetLang):

@@ -14,7 +14,7 @@ class encoder(nn.Module):
 
     def forward(self, input, hidden):
         embed = self.embedding(input)
-        embed = embed.view(1, self.batchSize, self.hiddenSize)
+        embed = embed.view(self.batchSize, 1, self.hiddenSize)
         output, hidden = self.lstm(embed, hidden)
         return output, hidden
 
@@ -51,23 +51,23 @@ class attnDecoder(nn.Module):
         self.batchSize = batchSize
         self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
         self.dropout = nn.Dropout(dropoutProb)
-        self.attn = nn.Linear(self.hiddenSize * 3, self.maxLength)
+        self.attn = nn.Linear(self.hiddenSize*2, self.maxLength)
         self.attnCombine = nn.Linear(self.hiddenSize * 3, self.hiddenSize*2)
-        self.lstm = nn.LSTM(self.hiddenSize*2, self.hiddenSize*2, num_layers = self.numLayers, batch_first = False)
-        self.out = nn.Linear(self.hiddenSize*2, self.outputSize)
+        self.lstm = nn.LSTM(self.hiddenSize*2, self.hiddenSize, num_layers = self.numLayers*2, batch_first = False)
+        self.out = nn.Linear(self.hiddenSize, self.outputSize)
 
     def forward(self, input, hidden, encoderOutputs):
-        embed = self.embed(input).view(1, self.batchSize, -1)
+        embed = self.embed(input).view(self.batchSize, 1, self.hiddenSize)
         embed = self.dropout(embed)
-        hidden = (hidden[0].view(self.numLayers, self.batchSize, self.hiddenSize * 2), 
-                hidden[1].view(self.numLayers, self.batchSize, self.hiddenSize * 2))
-         
-        attn = self.attn(torch.cat((embed[0], hidden[0][-1] + hidden[0][-2]), 1))
+        hidden = (hidden[0].view(self.numLayers*2, self.batchSize, self.hiddenSize), 
+                hidden[1].view(self.numLayers*2, self.batchSize, self.hiddenSize))
+        lastLayers = (hidden[0][-1] + hidden[0][-2]).view(self.batchSize, 1, self.hiddenSize)
+        attn = self.attn(torch.cat((embed, lastLayers), 2))
         attnWeights = nn.functional.softmax(attn, dim=1)
-        attnApplied = torch.bmm(attnWeights.unsqueeze(0), encoderOutputs.unsqueeze(0))
+        attnApplied = torch.bmm(attnWeights, encoderOutputs)
         
-        output = torch.cat((embed[0], attnApplied[0]), 1)
-        output = self.attnCombine(output).unsqueeze(0)
+        output = torch.cat((embed, attnApplied), 2)
+        output = self.attnCombine(output)
 
         output = nn.functional.relu(output)
         output, hidden = self.lstm(output, hidden)
