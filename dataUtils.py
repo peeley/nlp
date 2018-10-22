@@ -1,7 +1,7 @@
 import pandas as pd
 import unicodedata, string, torch, langModel, langModel, random
 import torch.utils.data
-from nltk import word_tokenize
+import nltk
 
 all_letters = string.ascii_letters + " .,;'-"
 n_letters = len(all_letters)
@@ -19,7 +19,7 @@ class LangDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         testLine = langModel.normalize(self.frame.loc[idx, self.testLang.name])
-        testLine = ' '.join(word_tokenize(testLine))
+        testLine = ' '.join(nltk.word_tokenize(testLine))
         targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
         testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, testLine, targetLine)
         return (testTensor, targetTensor, testLine, targetLine)
@@ -38,7 +38,7 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, t
         testLine = testLine.strip('\n')
         targetLang.addSentence(langModel.normalize(targetLine))
         # Tokenize english with NLTK tokenizer
-        testSent = ' '.join(word_tokenize(langModel.normalize(testLine)))
+        testSent = ' '.join(nltk.word_tokenize(langModel.normalize(testLine)))
         testLang.addSentence(testSent)
         if len(targetLine.split()) < words and len(testLine.split()) < words:
             frame.loc[index, targetLang.name] = targetLine
