@@ -1,23 +1,25 @@
 #!/usr/bin/python
 
-import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle
+import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle, argparse
 import torch.nn as nn
 
-size = 500                  # dataset size
-epochs = 15                 # training epochs
-dataSentenceLength = 10     # length of sentences in dataset
-maxWords = 50               # max length input of encoder
-hSize = 256                 # hidden size of encoder/decoder
-layers = 4                  # layers of network for encoder/decoder
-numWorkers = 8              # number of workers for dataLoader
-batch = 1                   # batch size. TODO: find out how to use batch input.
-reverse = True
+parser = argparse.ArgumentParser(description = "Script to train Qalgu translator.")
+parser.add_argument('--size', type=int, default = -1, help="Default: -1")
+parser.add_argument('--epochs', type=int, default = 15, help="Default: 15")
+parser.add_argument('--dataSentenceLength', type=int, default = 15, help="Default: 15")
+parser.add_argument('--maxWords', type=int, default = 50, help="Default: 50")
+parser.add_argument('--hSize', type=int, default = 1024, help="Default: 1024")
+parser.add_argument('--layers', type=int, default = 4, help="Default: 4")
+parser.add_argument('--batch', type=int, default = 1, help="Default: 1")
+parser.add_argument('--reverse', type=bool, default = False, help="Default: False")
+parser.add_argument('--lengthScheduling', type=int, default = False, help="Default: False")
+args = parser.parse_args()
 
 # Change length of sentences based on how long we've been training
-lengthSchedule = {0: dataSentenceLength,
-                  (epochs//3): dataSentenceLength + 10, 
-                  (epochs//2): dataSentenceLength + 20, 
-                  (epochs//1.5): dataSentenceLength + 30} 
+lengthSchedule = {0: args.dataSentenceLength,
+                  (args.epochs//3): args.dataSentenceLength + 10, 
+                  (args.epochs//2): args.dataSentenceLength + 20, 
+                  (args.epochs//1.5): args.dataSentenceLength + 30} 
 lengthScheduling = False
 
 testData = 'data/de-en/train.tok.clean.bpe.32000.en'
@@ -27,14 +29,14 @@ targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
 
 testLang = langModel.langModel('eng')
 targetLang = langModel.langModel('ipq')
-if reverse:
+if args.reverse:
     testLang, targetLang = targetLang, testLang
     testData, targetData = targetData, testData
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
-trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, testData, targetData, testLang, targetLang)
+trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
 testData = dataUtils.loadTestData(testDataVal, targetDataVal, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = numWorkers, batch_size = batch)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 16, batch_size = args.batch)
 
 cuda = False
 teacherForceRatio = .33
@@ -47,25 +49,25 @@ else:
     device = torch.device('cpu')
     print('PROCESSING WITH CPU\n')
 
-encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=hSize, 
-                          lr = .05, numLayers = layers, 
-                          batchSize = batch).to(device)
-decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=hSize, 
+encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=args.hSize, 
+                          lr = .05, numLayers = args.layers, 
+                          batchSize = args.batch).to(device)
+decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=args.hSize, 
                               lr = .05, dropoutProb = .001, 
-                              maxLength=maxWords, numLayers = layers).to(device)
+                              maxLength=args.maxWords, numLayers = args.layers).to(device)
 encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
 decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9, nesterov = True)
 encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
 decoderScheduler = torch.optim.lr_scheduler.ExponentialLR(decoderOptim, gamma = .9)
 
 startTime = datetime.datetime.now()
-for epoch in range(epochs):
+for epoch in range(args.epochs):
     if lengthScheduling:
         if epoch in lengthSchedule.keys():
             print("Increasing sentence length")
-            dataSentenceLength = lengthSchedule[epoch]
-            trainingData = dataUtils.loadTrainingData(size, dataSentenceLength, testData, targetData, testLang, targetLang)
-            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = numWorkers, batch_size = batch)
+            args.dataSentenceLength = lengthSchedule[epoch]
+            trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
+            dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = numWorkers, _size = args.batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()
@@ -78,8 +80,8 @@ for epoch in range(epochs):
         encoderOptim.zero_grad()
         decoderOptim.zero_grad()
 
-        encoderHidden = seq2seq.initHidden(cuda, hSize, layers*2)
-        encoderOutputs = torch.zeros(maxWords, hSize * 2).to(device)
+        encoderHidden = seq2seq.initHidden(cuda, args.hSize, args.layers*2)
+        encoderOutputs = torch.zeros(args.maxWords, args.hSize * 2).to(device)
 
         for inputLetter in range(inputTensor.shape[0]):
             encoderOutput, encoderHidden = encoder(inputTensor[inputLetter], encoderHidden)
@@ -113,7 +115,7 @@ for epoch in range(epochs):
 
         stepEndTime = datetime.datetime.now()
         stepTime = stepEndTime - stepStartTime
-        print('Item #{}/{} \t Epoch {}/{}'.format(row+1, len(trainingData), epoch+1, epochs))
+        print('Item #{}/{} \t Epoch {}/{}'.format(row+1, len(trainingData), epoch+1, args.epochs))
         print('Loss: \t\t', loss.item())
         print('Time: \t\t', stepTime, '\n')
     encoderScheduler.step()
@@ -121,11 +123,11 @@ for epoch in range(epochs):
 endTime = datetime.datetime.now()
 elapsedTime = endTime - startTime
 settingsDict = {
-        'maxWords' : maxWords,
-        'hSize' : hSize,
-        'layers' : layers,
-        'size' : size,
-        'dataSentenceLength' : dataSentenceLength
+        'maxWords' : args.maxWords,
+        'hSize' : args.hSize,
+        'layers' : args.layers,
+        'size' : args.size,
+        'dataSentenceLength' : args.dataSentenceLength
         }
 with open('params.json', 'w+') as params:
     print('\nWriting parameters to disk...')

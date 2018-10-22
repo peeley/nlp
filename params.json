@@ -1,1 +1,1 @@
-{"maxWords": 50, "hSize": 256, "layers": 4, "size": 1, "dataSentenceLength": 10}
+{"maxWords": 50, "hSize": 64, "layers": 4, "size": 10, "dataSentenceLength": 15}
