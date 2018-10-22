@@ -10,11 +10,8 @@ hSize    = params['hSize']
 maxWords = params['maxWords']
 layers   = params['layers']
 
-cuda = False
 if torch.cuda.is_available():
     device = torch.device('cuda')
-    encoder.to(device)
-    decoder.to(device)
     cuda = True
 else:
     device = torch.device('cpu')
@@ -61,6 +58,8 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
             return '    '
 
 def testBLEU(testData, encoder, decoder, testLang, targetLang):
+    encoder.to(device)
+    decoder.to(device)
     with torch.no_grad():
         bleuAVG = 0
         bleuScores = []
