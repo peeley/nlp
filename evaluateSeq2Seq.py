@@ -68,6 +68,7 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
         for index, line in testData.iterrows():
             testLine    = line[testLang.name]
             targetLine  = line[targetLang.name]
+            print('Item: \t#{}/{}'.format(index, testData.shape[0]))
             decodedString = evaluate(encoder, decoder, [testLine], testLang, targetLang)
             if '' in decodedString:
                 decodedString = list(filter(None, decodedString))
