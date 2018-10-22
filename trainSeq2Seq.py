@@ -54,11 +54,9 @@ decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=hSize,
                               lr = .05, dropoutProb = .001, 
                               maxLength=maxWords, numLayers = layers).to(device)
 encoderOptim = torch.optim.SGD(encoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
-decoderOptim = torch.optim.SGD(decoder.parameters(), encoder.lr, momentum = .9, nesterov = True)
+decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum = .9, nesterov = True)
 encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
 decoderScheduler = torch.optim.lr_scheduler.ExponentialLR(decoderOptim, gamma = .9)
-encoder = nn.DataParallel(encoder)
-decoder = nn.DataParallel(decoder)
 
 startTime = datetime.datetime.now()
 for epoch in range(epochs):
