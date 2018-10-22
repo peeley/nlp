@@ -3,7 +3,7 @@
 import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle
 import torch.nn as nn
 
-size = 1                    # dataset size
+size = 250                   # dataset size
 epochs = 10                 # training epochs
 dataSentenceLength = 10     # length of sentences in dataset
 maxWords = 50               # max length input of encoder
