@@ -1,10 +1,10 @@
 numpy==1.15.0
-torchtext==0.2.3
-matplotlib==2.2.2
-pandas==0.23.4
+torch==0.4.1.post2
 setuptools==40.4.3
 requests==2.20.0
+pandas==0.23.4
 nltk==3.3
+torchtext==0.2.3
 beautifulsoup4==4.6.3
 mock==2.0.0
 torchvision==0.2.1
