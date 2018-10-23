@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle, argparse
-import matplotlib.pyplot as plt
 import torch.nn as nn
 
 parser = argparse.ArgumentParser(description = "Script to train Qalgu translator.")
@@ -62,7 +61,6 @@ decoderOptim = torch.optim.SGD(decoder.parameters(), decoder.lr, momentum= .9, n
 #encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
 #decoderScheduler = torch.optim.lr_scheduler.ExponentialLR(decoderOptim, gamma = .9)
 startTime = datetime.datetime.now()
-losses = []
 for epoch in range(args.epochs):
     epochLoss = 0
     if lengthScheduling:
@@ -116,7 +114,6 @@ for epoch in range(args.epochs):
         stepEndTime = datetime.datetime.now()
         stepTime = stepEndTime - stepStartTime
     print('Epoch: {} \t Loss: {}'.format(epoch+1, epochLoss))
-    losses.append(epochLoss)
     #encoderScheduler.step()
     #decoderScheduler.step()
 endTime = datetime.datetime.now()
@@ -141,9 +138,6 @@ print('Writing models to disk...')
 torch.save(encoder, 'encoder.pt')
 torch.save(decoder, 'decoder.pt')
 print('Models saved to disk.\n')
-plt.plot(losses)
-plt.show()
-plt.savefig('results.png')
 evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
 print('Final loss: \t', loss.item())
 print('Elapsed time: \t', elapsedTime)
