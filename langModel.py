@@ -7,7 +7,6 @@ class langModel:
         self.word2idx = {'/start/': 0, '/end/':1}
         self.word2count = {}
         self.idx2word = {0: '/start/', 1:'/end/'}
-        self.idx2word = {}
         self.nWords = 2
         self.EOS = 1
         self.SOS = 0

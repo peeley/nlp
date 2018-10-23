@@ -42,9 +42,9 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, t
         # Tokenize english with NLTK tokenizer
         testSent = ' '.join(nltk.word_tokenize(langModel.normalize(testLine)))
         testLang.addSentence(testSent)
-        if len(targetLine.split()) < words and len(testLine.split()) < words:
+        if len(targetLine.split()) < words and len(testSent.split()) < words:
             frame.loc[index, targetLang.name] = targetLine
-            frame.loc[index, testLang.name] = testLine
+            frame.loc[index, testLang.name] = testSent
             index += 1
     print('Creation complete, ', index, ' lines.')
     targetFile.close()

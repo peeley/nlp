@@ -52,12 +52,13 @@ class attnDecoder(nn.Module):
         self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
         self.dropout = nn.Dropout(dropoutProb)
         self.attn = nn.Linear(self.hiddenSize*2, self.maxLength)
-        self.attnCombine = nn.Linear(self.hiddenSize * 3, self.hiddenSize*2)
-        self.lstm = nn.LSTM(self.hiddenSize*2, self.hiddenSize, num_layers = self.numLayers*2, batch_first = False)
+        self.attnCombine = nn.Linear(self.hiddenSize * 3, self.hiddenSize)
+        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, num_layers = self.numLayers*2, batch_first = True)
         self.out = nn.Linear(self.hiddenSize, self.outputSize)
 
     def forward(self, input, hidden, encoderOutputs):
-        embed = self.embed(input).view(self.batchSize, 1, self.hiddenSize)
+        embed = self.embed(input)
+        embed = embed.view(self.batchSize, 1, self.hiddenSize)
         embed = self.dropout(embed)
         hidden = (hidden[0].view(self.numLayers*2, self.batchSize, self.hiddenSize), 
                 hidden[1].view(self.numLayers*2, self.batchSize, self.hiddenSize))
@@ -70,8 +71,8 @@ class attnDecoder(nn.Module):
         output = self.attnCombine(output)
 
         output = nn.functional.relu(output)
-        output, hidden = self.lstm(output, hidden)
-        output = nn.functional.log_softmax(self.out(output[0]), dim=1)
+        output = self.out(output)
+        output = nn.functional.log_softmax(output[:], dim=2)
         return output, hidden
 
 def initHidden(cuda, hiddenSize, layers, batchSize = 1):

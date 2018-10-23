@@ -9,6 +9,7 @@ with open('params.json') as paramsFile:
 hSize    = params['hSize']
 maxWords = params['maxWords']
 layers   = params['layers']
+length   = params['dataSentenceLength']
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
@@ -23,7 +24,7 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
             for item in range(len(rawString)):
                 inputString = langModel.normalize(rawString[item])
                 print('\nTest sentence: \t', inputString)
-                inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString)
+                inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString, length)
                 inputSentence = inputSentence.view(-1,1).to(device)
 
                 inputLength = len(inputSentence)
