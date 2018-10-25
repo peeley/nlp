@@ -13,8 +13,9 @@ class encoder(nn.Module):
         self.batchSize = batchSize
 
     def forward(self, input, hidden):
+        batchSize = input.shape[0]
         embed = self.embedding(input)
-        embed = embed.view(self.batchSize, 1, self.hiddenSize)
+        embed = embed.view(batchSize, 1, self.hiddenSize)
         output, hidden = self.lstm(embed, hidden)
         return output, hidden
 
@@ -57,12 +58,13 @@ class attnDecoder(nn.Module):
         self.out = nn.Linear(self.hiddenSize, self.outputSize)
 
     def forward(self, input, hidden, encoderOutputs):
+        batchSize = input.shape[0]
         embed = self.embed(input)
-        embed = embed.view(self.batchSize, 1, self.hiddenSize)
+        embed = embed.view(batchSize, 1, self.hiddenSize)
         embed = self.dropout(embed)
-        hidden = (hidden[0].view(self.numLayers*2, self.batchSize, self.hiddenSize), 
-                hidden[1].view(self.numLayers*2, self.batchSize, self.hiddenSize))
-        lastLayers = (hidden[0][-1] + hidden[0][-2]).view(self.batchSize, 1, self.hiddenSize)
+        hidden = (hidden[0].view(self.numLayers*2, batchSize, self.hiddenSize), 
+                hidden[1].view(self.numLayers*2, batchSize, self.hiddenSize))
+        lastLayers = (hidden[0][-1] + hidden[0][-2]).view(batchSize, 1, self.hiddenSize)
         attn = self.attn(torch.cat((embed, lastLayers), 2))
         attnWeights = nn.functional.softmax(attn, dim=1)
         attnApplied = torch.bmm(attnWeights, encoderOutputs)
@@ -76,9 +78,9 @@ class attnDecoder(nn.Module):
         return output, hidden
 
 def initHidden(cuda, hiddenSize, layers, batchSize = 1):
+    hidden = (torch.zeros(layers, batchSize, hiddenSize), torch.zeros(layers, batchSize, hiddenSize))
     if cuda:
-        return (torch.zeros(layers, batchSize, hiddenSize).cuda(), torch.zeros(layers, batchSize, hiddenSize).cuda())
-    return (torch.zeros(layers, batchSize, hiddenSize), torch.zeros(layers, batchSize, hiddenSize))
-
+        return hidden.cuda()
+    return hidden
 
 

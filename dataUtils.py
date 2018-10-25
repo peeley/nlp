@@ -52,18 +52,21 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, t
     dataset = LangDataset(frame, testLang, targetLang, words)
     return dataset
 
-def loadTestData(testFileName, targetFileName, testLang, targetLang):
+def loadTestData(vocabSize, words, testFileName, targetFileName, testLang, targetLang):
     index = 0
     frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
     targetFile = open(targetFileName)
     testFile = open(testFileName)
     print('Creating test dataset...')
     for testLine, targetLine in zip(testFile, targetFile):
+        if index == vocabSize:
+            break
         targetLine = targetLine.strip('\n')
-        testLine = testLine.strip('\n')
-        frame.loc[index, targetLang.name] = targetLine
-        frame.loc[index, testLang.name] = testLine
-        index += 1
+        testLine = langModel.normalize(testLine.strip('\n'))
+        if len(targetLine.split()) < words and len(testLine.split()) < words:
+            frame.loc[index, targetLang.name] = targetLine
+            frame.loc[index, testLang.name] = testLine
+            index += 1
     print('Creation complete.')
     testFile.close()
     targetFile.close()
