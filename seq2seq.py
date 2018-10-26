@@ -80,7 +80,7 @@ class attnDecoder(nn.Module):
 def initHidden(cuda, hiddenSize, layers, batchSize = 1):
     hidden = (torch.zeros(layers, batchSize, hiddenSize), torch.zeros(layers, batchSize, hiddenSize))
     if cuda:
-        return hidden.cuda()
+        return (hidden[0].cuda(), hidden[1].cuda())
     return hidden
 
 
