@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import langModel, seq2seq, torch, random, datetime, dataUtils, evaluateSeq2Seq, json, pickle, argparse
+import langModel, seq2seq, torch, random, datetime, dataUtils, json, pickle, argparse
 import torch.nn as nn
 
 parser = argparse.ArgumentParser(description = "Script to train Qalgu translator.")
@@ -52,13 +52,10 @@ else:
     print('PROCESSING WITH CPU\n')
 
 encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=args.hSize, 
-                          lr = args.learningRate, numLayers = args.layers, 
-                          batchSize = args.batch).to(device)
+                          lr = args.learningRate, numLayers = args.layers).to(device)
 decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=args.hSize, 
                               lr = args.learningRate, dropoutProb = .001, 
-                              maxLength=args.maxWords, numLayers = args.layers,
-                              batchSize = args.batch).to(device)
-
+                              maxLength=args.maxWords, numLayers = args.layers).to(device)
 
 loss_fn = nn.NLLLoss()
 encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
@@ -124,13 +121,13 @@ for epoch in range(args.epochs):
         stepTime = datetime.datetime.now() - stepStartTime
     epochLoss = epochLoss / args.size
     epochTime = datetime.datetime.now() - epochTime
-    print('Epoch: {}\t Loss: {}\tEpoch Time: {}\tStep Time: {}'.format(epoch+1, epochLoss, epochTime, stepTime))
+    print('Epoch: {}\t Loss: {:.8}\tEpoch Time: {}\tStep Time: {}'.format(epoch+1, epochLoss, epochTime, stepTime))
     #encoderScheduler.step()
     #decoderScheduler.step()
 endTime = datetime.datetime.now()
 elapsedTime = endTime - startTime
-settingsDict = {}
 
+settingsDict = {}
 for arg in vars(args):
     value = getattr(args,arg)
     settingsDict[arg] = value
@@ -151,6 +148,9 @@ print('Writing models to disk...')
 torch.save(encoder, 'encoder.pt')
 torch.save(decoder, 'decoder.pt')
 print('Models saved to disk.\n')
+
+import evaluateSeq2Seq
+
 evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
 print('Final loss: \t', epochLoss.item())
 print('Elapsed time: \t', elapsedTime)

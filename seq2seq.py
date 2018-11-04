@@ -2,7 +2,7 @@ import torch, torchtext, pickle
 import torch.nn as nn
 
 class encoder(nn.Module):
-    def __init__(self, inputSize, hiddenSize = 300, lr = 1e-3, numLayers = 1, batchSize=1):
+    def __init__(self, inputSize, hiddenSize = 300, lr = 1e-3, numLayers = 1):
         super(encoder, self).__init__()
         self.hiddenSize = hiddenSize
         self.inputSize = inputSize
@@ -10,7 +10,6 @@ class encoder(nn.Module):
         self.embedding = nn.Embedding(self.inputSize, self.hiddenSize)
         self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, bidirectional = True, num_layers=numLayers, batch_first = True)
         self.lr = lr
-        self.batchSize = batchSize
 
     def forward(self, input, hidden):
         batchSize = input.shape[0]
@@ -42,14 +41,13 @@ class decoder(nn.Module):
         return output, hidden
 
 class attnDecoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .1, maxLength = 10, numLayers = 2, batchSize = 1):
+    def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .1, maxLength = 10, numLayers = 2):
         super(attnDecoder, self).__init__()
         self.lr = lr
         self.maxLength = maxLength 
         self.outputSize = outputSize
         self.hiddenSize = hiddenSize
         self.numLayers = numLayers
-        self.batchSize = batchSize
         self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
         self.dropout = nn.Dropout(dropoutProb)
         self.attn = nn.Linear(self.hiddenSize*2, self.maxLength)
