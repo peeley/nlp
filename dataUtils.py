@@ -1,6 +1,7 @@
 import pandas as pd
 import unicodedata, string, torch, langModel, langModel, random
 import torch.utils.data
+import torch.nn.utils.rnn as rnn
 import nltk
 
 all_letters = string.ascii_letters + " .,;'-"
@@ -18,9 +19,8 @@ class LangDataset(torch.utils.data.Dataset):
         return len(self.frame)
 
     def __getitem__(self, idx):
-        testLine = langModel.normalize(self.frame.loc[idx, self.testLang.name])
-        testLine = ' '.join(nltk.word_tokenize(testLine))
-        targetLine = langModel.normalize(self.frame.loc[idx, self.targetLang.name])
+        testLine   = self.frame.loc[idx, self.testLang.name]
+        targetLine = self.frame.loc[idx, self.targetLang.name]
         testTensor, targetTensor = langModel.tensorFromPair(self.testLang, self.targetLang, 
                                                             testLine, targetLine,
                                                             self.length)
@@ -49,6 +49,25 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, t
     print('Creation complete, ', index, ' lines.')
     targetFile.close()
     testFile.close()
+    dataset = LangDataset(frame, testLang, targetLang, words)
+    return dataset
+
+def loadToyData(vocabSize, words, filename, testLang, targetLang):
+    frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
+    index = 0
+    with open(filename, encoding = 'utf8') as langFile:
+        for line in langFile:
+            if index == vocabSize:
+                break
+            sentences = line.strip('\n').split('\t')
+            testLine = ' '.join(nltk.word_tokenize((sentences[0])))
+            targetLine = ' '.join(nltk.word_tokenize((sentences[1])))
+            testLang.addSentence(testLine)
+            targetLang.addSentence(targetLine)
+
+            frame.loc[index, targetLang.name] = targetLine
+            frame.loc[index, testLang.name] = testLine
+            index += 1
     dataset = LangDataset(frame, testLang, targetLang, words)
     return dataset
 

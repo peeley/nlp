@@ -30,6 +30,7 @@ testDataVal = 'data/de-en/train.tok.clean.bpe.32000.en'
 targetDataVal = 'data/de-en/train.tok.clean.bpe.32000.de'
 #testDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
 #targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
+toyData = 'data/de-en/deu-eng/deu.txt'
 
 testLang = langModel.langModel('eng')
 targetLang = langModel.langModel('ipq')
@@ -38,9 +39,10 @@ if args.reverse:
     testData, targetData = targetData, testData
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
-trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
-testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 8, batch_size = args.batch)
+#trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
+trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
+testData = dataUtils.loadTestData(args.size, args.dataSentenceLength, testDataVal, targetDataVal, testLang, targetLang) 
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = args.batch)
 
 cuda = False
 if torch.cuda.is_available():
@@ -53,15 +55,15 @@ else:
 
 encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=args.hSize, 
                           lr = args.learningRate, numLayers = args.layers).to(device)
-decoder = seq2seq.attnDecoder(targetLang.nWords+1, hiddenSize=args.hSize, 
+decoder = seq2seq.decoder(targetLang.nWords+1, hiddenSize=args.hSize, 
                               lr = args.learningRate, dropoutProb = .001, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
 
-loss_fn = nn.NLLLoss()
-encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
-decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
-#encoderScheduler = torch.optim.lr_scheduler.ExponentialLR(encoderOptim, gamma = .9)
-#decoderScheduler = torch.optim.lr_scheduler.ExponentialLR(decoderOptim, gamma = .9)
+loss_fn = nn.NLLLoss(ignore_index = testLang.PAD, reduction = 'sum')
+#encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
+#decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
+encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
+decoderOptim = torch.optim.SGD(decoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
 
 encoder = nn.DataParallel(encoder)
 decoder = nn.DataParallel(decoder)
@@ -79,7 +81,7 @@ for epoch in range(args.epochs):
             trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, 
                                                       testData, targetData, testLang, targetLang)
             dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, 
-                                                     num_workers = numWorkers, batch_size = args.batch)
+                                                     num_workers = 0, batch_size = args.batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()
@@ -87,7 +89,6 @@ for epoch in range(args.epochs):
         batchSize = inputTensor.shape[0]
         inputLine, targetLine = item[2][0], item[3][0]
         loss = 0
-        
         encoderOptim.zero_grad()
         decoderOptim.zero_grad()
         encoderHidden = seq2seq.initHidden(cuda, args.hSize, args.layers*2, batchSize)
@@ -96,7 +97,7 @@ for epoch in range(args.epochs):
             encoderOutput, encoderHidden = encoder(inputTensor[:,inputLetter], encoderHidden)
             encoderOutputs[:, inputLetter] = encoderOutput[:, 0]
         
-        decoderInput = torch.zeros([batchSize, 1], dtype = torch.long).to(device)
+        decoderInput = torch.ones([batchSize, 1], dtype = torch.long).to(device)
         decoderHidden = encoderHidden
 
         teacherForce = True if random.random() < teacherForceRatio else False
@@ -110,7 +111,7 @@ for epoch in range(args.epochs):
                 decoderInput = targetTensor[:, targetLetter]
             else:
                 topv, topi = decoderOutput.topk(1)
-                decoderInput = topi.squeeze().detach()
+                decoderInput = topi.squeeze().detach().view(batchSize, 1)
 
         loss.backward()
         nn.utils.clip_grad_norm_(decoder.parameters(), 10)
@@ -121,7 +122,7 @@ for epoch in range(args.epochs):
         stepTime = datetime.datetime.now() - stepStartTime
     epochLoss = epochLoss / args.size
     epochTime = datetime.datetime.now() - epochTime
-    print('Epoch: {}\t Loss: {:.8}\tEpoch Time: {}\tStep Time: {}'.format(epoch+1, epochLoss, epochTime, stepTime))
+    print('Epoch: {}\t Loss: {:.8} \tEpoch Time: {}\tStep Time: {}'.format(epoch+1, epochLoss, epochTime, stepTime))
     #encoderScheduler.step()
     #decoderScheduler.step()
 endTime = datetime.datetime.now()

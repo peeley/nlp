@@ -4,12 +4,13 @@ import numpy as np
 class langModel:
     def __init__(self, name):
         self.name = name
-        self.word2idx = {'/start/': 0, '/end/':1}
+        self.word2idx = {0:'/pad/', '/start/': 1, '/end/':2}
         self.word2count = {}
-        self.idx2word = {0: '/start/', 1:'/end/'}
+        self.idx2word = {0: '/pad/', 1:'/start/', 2:'/end/'}
         self.nWords = 2
-        self.EOS = 1
-        self.SOS = 0
+        self.EOS = 2
+        self.SOS = 1
+        self.PAD = 0
         self.glove = []
 
     def addEmbedding(self, filepath, filename):
@@ -63,11 +64,11 @@ def tensorFromSentence(lang, sentence, length):
             indices.append(lang.word2idx[word])
         except KeyError as e:
             rareWords[num] = word
-            print('WARNING - Word not in vocabulary: ', word)
-    indices.append(1)
-    while len(indices) < (length + 15):
-        indices.append(1)
-    indices = torch.tensor(indices, dtype = torch.long).view(-1,1)
+            print('WARNING - Word not in vocabulary: "{}"'.format(word))
+    indices.append(lang.EOS)
+    while len(indices) < (length):
+        indices.append(lang.PAD)
+    indices = torch.tensor(indices, dtype = torch.long).view(-1, 1)
     return indices, rareWords
 
 def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length):

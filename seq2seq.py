@@ -1,5 +1,6 @@
 import torch, torchtext, pickle
 import torch.nn as nn
+import torch.nn.utils.rnn as rnn
 
 class encoder(nn.Module):
     def __init__(self, inputSize, hiddenSize = 300, lr = 1e-3, numLayers = 1):
@@ -7,12 +8,12 @@ class encoder(nn.Module):
         self.hiddenSize = hiddenSize
         self.inputSize = inputSize
         self.numLayers = numLayers
-        self.embedding = nn.Embedding(self.inputSize, self.hiddenSize)
+        self.embedding = nn.Embedding(self.inputSize, self.hiddenSize, padding_idx = 0)
         self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, bidirectional = True, num_layers=numLayers, batch_first = True)
         self.lr = lr
 
     def forward(self, input, hidden):
-        batchSize = input.shape[0]
+        batchSize= input.shape[0]
         embed = self.embedding(input)
         embed = embed.view(batchSize, 1, self.hiddenSize)
         output, hidden = self.lstm(embed, hidden)
@@ -27,16 +28,17 @@ class decoder(nn.Module):
         self.numLayers = numLayers
         self.dropout = nn.Dropout(dropoutProb)
         self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
-        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, num_layers = self.numLayers)
+        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, num_layers = self.numLayers*2, batch_first = True)
         self.linear = nn.Linear(self.hiddenSize, self.outputSize)
-        self.softmax = nn.LogSoftmax(dim = 1)
+        self.softmax = nn.LogSoftmax(dim = 2)
         self.lr = lr
 
     def forward(self, input, hidden, out):
-        embed = self.embed(input).view(1,1,-1)
+        batchSize = input.shape[0]
+        embed = self.embed(input).view(batchSize,1, self.hiddenSize)
         out = nn.functional.relu(embed)
         output, hidden = self.lstm(out, hidden)
-        output = self.linear(output[0])
+        output = self.linear(output[:])
         output = self.softmax(output)
         return output, hidden
 
@@ -48,7 +50,7 @@ class attnDecoder(nn.Module):
         self.outputSize = outputSize
         self.hiddenSize = hiddenSize
         self.numLayers = numLayers
-        self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
+        self.embed = nn.Embedding(self.outputSize, self.hiddenSize, padding_idx=0)
         self.dropout = nn.Dropout(dropoutProb)
         self.attn = nn.Linear(self.hiddenSize*2, self.maxLength)
         self.attnCombine = nn.Linear(self.hiddenSize * 3, self.hiddenSize)

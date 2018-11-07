@@ -21,7 +21,7 @@ else:
 def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
     with torch.no_grad():
         for item in range(len(rawString)):
-            inputString = langModel.normalize(rawString[item])
+            inputString = (rawString[item])
             print('\nTest sentence: \t', inputString)
             inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString, length)
             inputSentence = inputSentence.view(1,-1,1).to(device)
@@ -43,7 +43,7 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
                     decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                     decoderOutput = decoderOutput.view(1, -1)
                     topv, topi = decoderOutput.data.topk(1)
-                    if topi.item() == 1:
+                    if topi.item() == testLang.EOS:
                         decodedWords.append('/end/')
                         break
                     else:
@@ -61,7 +61,7 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
         print('--- TESTING BLEU SCORES ---')
         for index, line in testData.iterrows():
             testLine    = line[testLang.name]
-            targetLine  = line[targetLang.name]
+            targetLine  = langModel.normalize(line[targetLang.name])
             print('Item: \t#{}/{}'.format(index, testData.shape[0]))
             decodedString = evaluate(encoder, decoder, [testLine], testLang, targetLang)
             if '' in decodedString:
