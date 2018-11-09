@@ -41,8 +41,8 @@ if args.reverse:
 
 #trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
 trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
-testData = dataUtils.loadTestData(args.size, args.dataSentenceLength, testDataVal, targetDataVal, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, batch_size = args.batch)
+testData = dataUtils.loadToyTest(500, args.dataSentenceLength, toyData, testLang, targetLang) 
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, batch_size = args.batch)
 
 cuda = False
 if torch.cuda.is_available():
@@ -56,14 +56,14 @@ else:
 encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=args.hSize, 
                           lr = args.learningRate, numLayers = args.layers).to(device)
 decoder = seq2seq.decoder(targetLang.nWords+1, hiddenSize=args.hSize, 
-                              lr = args.learningRate, dropoutProb = .001, 
+                              lr = args.learningRate, dropoutProb = .3, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
 
 loss_fn = nn.NLLLoss(ignore_index = testLang.PAD, reduction = 'sum')
-#encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
-#decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
-encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
-decoderOptim = torch.optim.SGD(decoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
+encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
+decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
+#encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
+#decoderOptim = torch.optim.SGD(decoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
 
 encoder = nn.DataParallel(encoder)
 decoder = nn.DataParallel(decoder)
@@ -81,7 +81,7 @@ for epoch in range(args.epochs):
             trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, 
                                                       testData, targetData, testLang, targetLang)
             dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, 
-                                                     num_workers = 0, batch_size = args.batch)
+                                                     num_workers = 4, batch_size = args.batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()

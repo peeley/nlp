@@ -20,7 +20,7 @@ class encoder(nn.Module):
         return output, hidden
 
 class decoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .1, maxLength=10, numLayers = 2):
+    def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .3, maxLength=10, numLayers = 2):
         super(decoder, self).__init__()
         self.hiddenSize = hiddenSize
         self.outputSize = outputSize
@@ -43,7 +43,7 @@ class decoder(nn.Module):
         return output, hidden
 
 class attnDecoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .1, maxLength = 10, numLayers = 2):
+    def __init__(self, outputSize, hiddenSize = 300, lr = 1e-3, dropoutProb = .3, maxLength = 10, numLayers = 2):
         super(attnDecoder, self).__init__()
         self.lr = lr
         self.maxLength = maxLength 
