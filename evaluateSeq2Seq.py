@@ -24,16 +24,11 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
             inputString = (rawString[item])
             print('\nTest sentence: \t', inputString)
             inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString, length)
-            inputSentence = inputSentence.view(1,-1,1).to(device)
+            inputSentence = inputSentence.view(-1,1,1).to(device)
 
-            encoderHidden = seq2seq.initHidden(cuda, hSize, layers * 2)
-            encoderOutputs = torch.zeros(1, maxWords, hSize * 2).to(device)
-            for word in range(inputSentence.shape[0]):
-                encoderOutput, encoderHidden = encoder(inputSentence[0, word], encoderHidden)
-                encoderOutputs[0, word] = encoderOutput[0, 0]
-
+            encoderOutputs, encoderHidden = encoder(inputSentence, None)
             decoderInput = torch.tensor([[targetLang.SOS]]).to(device)
-            decoderHidden = encoderHidden
+            decoderHidden = encoderHidden[:layers]
             decodedWords = []
             
             for letter in range(maxWords):

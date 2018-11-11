@@ -42,7 +42,8 @@ if args.reverse:
 #trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
 trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
 testData = dataUtils.loadToyTest(args.size, args.dataSentenceLength, toyData, testLang, targetLang) 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, batch_size = args.batch)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
+                                         batch_size = args.batch, drop_last = True)
 
 cuda = False
 if torch.cuda.is_available():
@@ -53,11 +54,11 @@ else:
     device = torch.device('cpu')
     print('PROCESSING WITH CPU\n')
 
-encoder = seq2seq.encoder(testLang.nWords+1, hiddenSize=args.hSize, numLayers = args.layers).to(device)
-decoder = seq2seq.bahdanauDecoder(targetLang.nWords+1, hiddenSize=args.hSize, 
-                              dropoutProb = .3, maxLength=args.maxWords, numLayers = args.layers).to(device)
+encoder = seq2seq.encoder(testLang.nWords, hiddenSize=args.hSize, numLayers = args.layers).to(device)
+decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
+                              maxLength=args.maxWords, numLayers = args.layers).to(device)
 
-loss_fn = nn.NLLLoss(ignore_index = testLang.PAD, reduction = 'sum')
+loss_fn = nn.CrossEntropyLoss(ignore_index = testLang.PAD, reduction = 'sum')
 encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
 decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
 #encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
@@ -86,36 +87,28 @@ for epoch in range(args.epochs):
         inputTensor, targetTensor = item[0].to(device), item[1].to(device)
         inputTensor, targetTensor = inputTensor.transpose(0,1), targetTensor.transpose(0,1)
 
-        batchSize = inputTensor.shape[0]
-        seqLengths = inputTensor.shape[1]
+        seqLengths = inputTensor.shape[0]
+        batchSize = inputTensor.shape[1]
         inputLine, targetLine = item[2][0], item[3][0]
         loss = 0
         encoderOptim.zero_grad()
         decoderOptim.zero_grad()
-        '''
-        encoderHidden = seq2seq.initHidden(cuda, args.hSize, args.layers*2, batchSize)
-        encoderOutput = torch.zeros(batchSize, args.maxWords, args.hSize * 2).to(device)
-        for inputLetter in range(inputTensor.shape[1]):
-            encoderOutput, encoderHidden = encoder(inputTensor[:,inputLetter], encoderHidden)
-            encoderOutputs[:, inputLetter] = encoderOutput[:, 0]
-        '''
+        
         encoderOutput, encoderHidden = encoder(inputTensor, None)
-
         decoderInput = torch.LongTensor([testLang.PAD] * batchSize).to(device)
-        print(encoderHidden.shape)
         decoderHidden = encoderHidden[:args.layers]
 
         teacherForce = random.random() < teacherForceRatio
 
         for currentWord in range(seqLengths):
             decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutput)
-            thisLoss = loss_fn(decoderOutput[:], targetTensor[currentWord].view(1,batchSize, 1))
+            thisLoss = loss_fn(decoderOutput[:].squeeze(1), targetTensor[currentWord, :].squeeze(1))
             loss += thisLoss
             if teacherForce:
                 decoderInput = targetTensor[currentWord]
             else:
                 topv, topi = decoderOutput.topk(1)
-                decoderInput = topi.squeeze().detach().view(1, batchSize)
+                decoderInput = topi.squeeze().detach().view(batchSize)
 
         loss.backward()
         nn.utils.clip_grad_norm_(decoder.parameters(), 30)

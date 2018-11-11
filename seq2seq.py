@@ -12,10 +12,10 @@ class encoder(nn.Module):
         self.gru = nn.GRU(self.hiddenSize, self.hiddenSize, bidirectional = True, num_layers=numLayers)
 
     def forward(self, input, hidden):
-        batchSize= input.shape[0]
-        seqLengths = input.shape[1]
+        batchSize= input.shape[1]
+        seqLengths = input.shape[0]
         embed = self.embedding(input)
-        embed = embed.view(batchSize, seqLengths, self.hiddenSize)
+        embed = embed.view(seqLengths, batchSize, self.hiddenSize)
         output, hidden = self.gru(embed, hidden)
         output = output[:, :, :self.hiddenSize] + output[:, :, self.hiddenSize:]
         return output, hidden
@@ -83,19 +83,19 @@ class Attn(nn.Module):
         self.v = nn.Parameter(torch.FloatTensor(1, hiddenSize))
 
     def score(self, hidden, encoderOutput):
-        energy = self.attn(torch.cat((hidden, encoderOutput[0]), 1))
-        energy = self.v.dot(energy[0])
-        return energy
+        energy = torch.tanh(self.attn(torch.cat([hidden, encoderOutput], 2))) # [B*T*2H]->[B*T*H]
+        energy = energy.transpose(2,1) # [B*H*T]
+        v = self.v.repeat(encoderOutput.data.shape[0],1).unsqueeze(1) #[B*1*H]
+        energy = torch.bmm(v,energy) # [B*1*T]
+        return energy.squeeze(1) #[B*T]
 
     def forward(self, hidden, encoderOutputs):
-        maxLen = encoderOutputs.shape[0]
-        batchSize = encoderOutputs.shape[1]
-        attnEnergies = torch.zeros(batchSize, maxLen)
-        for b in range(batchSize):
-            for i in range(maxLen):
-                attnEnergies[b, i] = self.score(hidden[:, b], encoderOutputs[i, b].unsqueeze(0))
-        out = nn.functional.softmax(attnEnergies).unsqueeze(1)
-        return out 
+        seqLengths = encoderOutputs.size(0)
+        batchSize = encoderOutputs.size(1)
+        H = hidden.repeat(seqLengths, 1, 1).transpose(0,1)
+        encoderOutputs = encoderOutputs.transpose(0,1) # [B*T*H]
+        attnEnergy = self.score(H, encoderOutputs) # compute attention score
+        return nn.functional.softmax(attnEnergy).unsqueeze(1) # normalize with softmax      
 
 class bahdanauDecoder(nn.Module):
     def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .3, maxLength = 10, numLayers = 2):
@@ -107,24 +107,20 @@ class bahdanauDecoder(nn.Module):
         self.embed = nn.Embedding(outputSize, hiddenSize, padding_idx = 0)
         self.dropout = nn.Dropout(dropoutProb)
         self.attn = Attn(self.hiddenSize)
-        self.gru = nn.GRU(hiddenSize, hiddenSize, numLayers, dropout=dropoutProb)
-        self.concat = nn.Linear(hiddenSize * 2, hiddenSize)
+        self.gru = nn.GRU(hiddenSize * 2, hiddenSize, numLayers, dropout=dropoutProb)
         self.out = nn.Linear(hiddenSize, outputSize)
 
     def forward(self, input, hidden, encoderOutputs):
         batchSize = input.shape[0]
-        embed = self.embed(input)
-        embed = self.dropout(embed).view(1,batchSize, self.hiddenSize)
-        rnnOut, hidden = self.gru(embed, hidden)
-        attnWeights = self.attn(rnnOut, encoderOutputs)
-        context = attnWeights.bmm(encoderOutputs.transpose(0,1))
-        context = context.transpose(0,1)
-        rnnOut = rnnOut.squeeze(0)
-        context = context.squeeze(1)
-        concatIn = torch.cat((rnnOut, context), 1)
-        concatOut = nn.functional.tanh(self.concat(concatIn))
-        output = self.out(concatOut)
-        return output, hidden, attnWeights
+        embed = self.embed(input).view(1, batchSize, -1) # (1,B,V)
+        attnWeights = self.attn(hidden[-1], encoderOutputs)
+        context = attnWeights.bmm(encoderOutputs.transpose(0, 1))  # (B,1,V)
+        context = context.transpose(0, 1)  # (1,B,V)
+        rnnIn = torch.cat((embed, context), 2)
+        output, hidden = self.gru(rnnIn, hidden)
+        output = output.squeeze(0)  # (1,B,V)->(B,V)
+        output = nn.functional.log_softmax(self.out(output))
+        return output, hidden
 
 def initHidden(cuda, hiddenSize, layers, batchSize = 1):
     hidden = (torch.zeros(layers, batchSize, hiddenSize), torch.zeros(layers, batchSize, hiddenSize))
