@@ -42,45 +42,13 @@ class decoder(nn.Module):
         output = self.softmax(output)
         return output, hidden
 
-class attnDecoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .3, maxLength = 10, numLayers = 2):
-        super(attnDecoder, self).__init__()
-        self.maxLength = maxLength 
-        self.outputSize = outputSize
-        self.hiddenSize = hiddenSize
-        self.numLayers = numLayers
-        self.embed = nn.Embedding(self.outputSize, self.hiddenSize, padding_idx=0)
-        self.dropout = nn.Dropout(dropoutProb)
-        self.attn = nn.Linear(self.hiddenSize*2, self.maxLength)
-        self.attnCombine = nn.Linear(self.hiddenSize * 3, self.hiddenSize)
-        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, num_layers = self.numLayers*2, batch_first = True)
-        self.out = nn.Linear(self.hiddenSize, self.outputSize)
-
-    def forward(self, input, hidden, encoderOutputs):
-        batchSize = input.shape[0]
-        embed = self.embed(input)
-        embed = self.dropout(embed)
-        hidden = (hidden[0].view(self.numLayers*2, batchSize, self.hiddenSize), 
-                hidden[1].view(self.numLayers*2, batchSize, self.hiddenSize))
-        lastLayers = (hidden[0][-1] + hidden[0][-2]).view(1, batchSize, self.hiddenSize)
-        attn = self.attn(torch.cat((embed, lastLayers), 2))
-        attnWeights = nn.functional.softmax(attn, dim=2)
-        attnApplied = torch.bmm(attnWeights, encoderOutputs)
-        
-        output = torch.cat((embed, attnApplied), 2)
-        output = self.attnCombine(output)
-
-        output = nn.functional.relu(output)
-        output = self.out(output)
-        output = nn.functional.log_softmax(output[:], dim=2)
-        return output, hidden
-
 class Attn(nn.Module):
     def __init__(self, hiddenSize):
         super(Attn, self).__init__()
         self.hiddenSize = hiddenSize
         self.attn = nn.Linear(self.hiddenSize * 2, hiddenSize)
         self.v = nn.Parameter(torch.FloatTensor(1, hiddenSize))
+        self.softmax = nn.Softmax(dim = -1)
 
     def score(self, hidden, encoderOutput):
         energy = torch.tanh(self.attn(torch.cat([hidden, encoderOutput], 2))) # [B*T*2H]->[B*T*H]
@@ -95,7 +63,7 @@ class Attn(nn.Module):
         H = hidden.repeat(seqLengths, 1, 1).transpose(0,1)
         encoderOutputs = encoderOutputs.transpose(0,1) # [B*T*H]
         attnEnergy = self.score(H, encoderOutputs) # compute attention score
-        return nn.functional.softmax(attnEnergy).unsqueeze(1) # normalize with softmax      
+        return self.softmax(attnEnergy).unsqueeze(1) # normalize with softmax      
 
 class bahdanauDecoder(nn.Module):
     def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .3, maxLength = 10, numLayers = 2):
@@ -109,6 +77,7 @@ class bahdanauDecoder(nn.Module):
         self.attn = Attn(self.hiddenSize)
         self.gru = nn.GRU(hiddenSize * 2, hiddenSize, numLayers, dropout=dropoutProb)
         self.out = nn.Linear(hiddenSize, outputSize)
+        self.softmax = nn.LogSoftmax(dim = -1)
 
     def forward(self, input, hidden, encoderOutputs):
         batchSize = input.shape[0]
@@ -119,7 +88,7 @@ class bahdanauDecoder(nn.Module):
         rnnIn = torch.cat((embed, context), 2)
         output, hidden = self.gru(rnnIn, hidden)
         output = output.squeeze(0)  # (1,B,V)->(B,V)
-        output = nn.functional.log_softmax(self.out(output))
+        output = self.softmax(self.out(output))
         return output, hidden
 
 def initHidden(cuda, hiddenSize, layers, batchSize = 1):

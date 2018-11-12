@@ -39,10 +39,11 @@ if args.reverse:
     testData, targetData = targetData, testData
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
-#trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
-#testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
-trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
-testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
+trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
+testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
+
+#trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
+#testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
 dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
                                          batch_size = args.batch, drop_last = True)
 
@@ -59,9 +60,11 @@ encoder = seq2seq.encoder(testLang.nWords, hiddenSize=args.hSize, numLayers = ar
 decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
 
-loss_fn = nn.NLLLoss(ignore_index = testLang.PAD, reduction = 'sum')
-encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
-decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
+loss_fn = nn.NLLLoss(ignore_index = testLang.PAD)
+#encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
+#decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
+encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate)
+decoderOptim = torch.optim.SGD(decoder.parameters(), lr= args.learningRate)
 
 encoder = nn.DataParallel(encoder)
 decoder = nn.DataParallel(decoder)
@@ -109,8 +112,8 @@ for epoch in range(args.epochs):
                 decoderInput = topi.squeeze().detach().view(batchSize)
 
         loss.backward()
-        nn.utils.clip_grad_norm_(decoder.parameters(), 20)
-        nn.utils.clip_grad_norm_(encoder.parameters(), 20)
+        nn.utils.clip_grad_norm_(decoder.parameters(), 25)
+        nn.utils.clip_grad_norm_(encoder.parameters(), 25)
         encoderOptim.step()
         decoderOptim.step()
         epochLoss += loss
