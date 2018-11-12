@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
-import torch, seq2seq, langModel, dataUtils, json, pickle
+import torch, seq2seq, langModel, dataUtils, json, pickle, sys
 import pandas as pd
-from nltk.translate.bleu_score import sentence_bleu
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
 with open('params.json') as paramsFile:
     params = json.load(paramsFile)
@@ -22,7 +22,6 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
     with torch.no_grad():
         for item in range(len(rawString)):
             inputString = (rawString[item])
-            print('\nTest sentence: \t', inputString)
             inputSentence, rareWords = langModel.tensorFromSentence(testLang, inputString, length)
             inputSentence = inputSentence.view(-1,1,1).to(device)
 
@@ -44,7 +43,6 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
                     else:
                         decodedWords.append(targetLang.idx2word[topi.item()])
                     decoderInput = torch.tensor([topi.squeeze().detach()])
-            print('Translated: \t', ' '.join(decodedWords))
     return decodedWords
 
 def testBLEU(testData, encoder, decoder, testLang, targetLang):
@@ -57,7 +55,6 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
         for index, line in testData.iterrows():
             testLine    = line[testLang.name]
             targetLine  = langModel.normalize(line[targetLang.name])
-            print('Item: \t#{}/{}'.format(index, testData.shape[0]))
             decodedString = evaluate(encoder, decoder, [testLine], testLang, targetLang)
             if '' in decodedString:
                 decodedString = list(filter(None, decodedString))
@@ -66,13 +63,19 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
             if decodedString == None or decodedString == -1:
                 bleu = 0
             else:
-                bleu = sentence_bleu([targetLine.split()], decodedString)
-            print('Target: \t', targetLine)
-            print('BLEU Score: \t', bleu)
+                bleu = sentence_bleu([targetLine.split()], decodedString) 
             bleuScores.append(bleu)
-            bleuAVG = (sum(bleuScores)/len(bleuScores)) * 100
-            print('BLEU Average: \t', bleuAVG, '\n')
-        print('\nFinal BLEU: \t', bleuAVG)
+            bleuAVG = (sum(bleuScores)/len(bleuScores))
+            if len(decodedString) >= 4:
+                print('\nItem: \t#{}/{}'.format(index, testData.shape[0]))
+                print('Test: \t', testLine)
+                print('Translated: \t', ' '.join(decodedString))
+                print(decodedString)
+                print('Target: \t', targetLine)
+                print(targetLine.split())
+                print('BLEU Score: \t', bleu)
+                print('BLEU Average: \t{:.8} ({:.8})\n'.format(bleuAVG, bleuAVG * 100))
+        print('\nFinal BLEU:\t{:.8} ({:.8})\n'.format(bleuAVG, bleuAVG * 100))
 
 
 if __name__ == '__main__':
@@ -91,6 +94,12 @@ if __name__ == '__main__':
     with open('ipq.p', 'rb') as ipqFile:
         ipq = pickle.load(ipqFile)
     print('Language models loaded.')
+    if sys.argv[1] == 'test':
+        filename = 'data/de-en/deu-eng/deu.txt'
+        testData = dataUtils.loadToyTest(500, params['dataSentenceLength'], 
+                                         filename, 'eng', 'ipq')
+        testBLEU(testData, savedEncoder, savedDecoder, eng, ipq)
+        exit()
     while True:
         testString = input('\nEnter text to be translated: ')
         testData = [testString]

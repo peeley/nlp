@@ -40,8 +40,9 @@ if args.reverse:
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
 #trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
+#testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
 trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
-testData = dataUtils.loadToyTest(args.size, args.dataSentenceLength, toyData, testLang, targetLang) 
+testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
 dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
                                          batch_size = args.batch, drop_last = True)
 
@@ -58,11 +59,9 @@ encoder = seq2seq.encoder(testLang.nWords, hiddenSize=args.hSize, numLayers = ar
 decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
 
-loss_fn = nn.CrossEntropyLoss(ignore_index = testLang.PAD, reduction = 'sum')
+loss_fn = nn.NLLLoss(ignore_index = testLang.PAD, reduction = 'sum')
 encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
 decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
-#encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
-#decoderOptim = torch.optim.SGD(decoder.parameters(), lr= args.learningRate, momentum = .9, nesterov = True)
 
 encoder = nn.DataParallel(encoder)
 decoder = nn.DataParallel(decoder)
@@ -80,13 +79,12 @@ for epoch in range(args.epochs):
             trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, 
                                                       testData, targetData, testLang, targetLang)
             dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, 
-                                                     num_workers = 4, batch_size = args.batch)
+                                                     num_workers = 0, batch_size = args.batch)
             print("Created new dataset")
     for row, item in enumerate(dataLoader):
         stepStartTime = datetime.datetime.now()
         inputTensor, targetTensor = item[0].to(device), item[1].to(device)
         inputTensor, targetTensor = inputTensor.transpose(0,1), targetTensor.transpose(0,1)
-
         seqLengths = inputTensor.shape[0]
         batchSize = inputTensor.shape[1]
         inputLine, targetLine = item[2][0], item[3][0]
@@ -111,8 +109,8 @@ for epoch in range(args.epochs):
                 decoderInput = topi.squeeze().detach().view(batchSize)
 
         loss.backward()
-        nn.utils.clip_grad_norm_(decoder.parameters(), 30)
-        nn.utils.clip_grad_norm_(encoder.parameters(), 30)
+        nn.utils.clip_grad_norm_(decoder.parameters(), 20)
+        nn.utils.clip_grad_norm_(encoder.parameters(), 20)
         encoderOptim.step()
         decoderOptim.step()
         epochLoss += loss
@@ -121,8 +119,6 @@ for epoch in range(args.epochs):
     epochLoss = epochLoss / args.size
     epochTime = datetime.datetime.now() - epochTime
     print('Epoch: {}\t Loss: {:.8} \tEpoch Time: {}\tStep Time: {}'.format(epoch+1, epochLoss, epochTime, stepTime))
-    #encoderScheduler.step()
-    #decoderScheduler.step()
 endTime = datetime.datetime.now()
 elapsedTime = endTime - startTime
 

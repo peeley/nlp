@@ -38,13 +38,13 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, t
             break
         targetLine = targetLine.strip('\n')
         testLine = testLine.strip('\n')
-        targetLang.addSentence(langModel.normalize(targetLine))
-        # Tokenize english with NLTK tokenizer
-        testSent = ' '.join(nltk.word_tokenize(langModel.normalize(testLine)))
-        testLang.addSentence(testSent)
-        if len(targetLine.split()) < words and len(testSent.split()) < words:
+        testLine = ' '.join(nltk.word_tokenize(langModel.normalize(testLine)))
+        targetLine = ' '.join(nltk.word_tokenize(langModel.normalize(targetLine)))
+        testLang.addSentence(testLine)
+        targetLang.addSentence(targetLine)
+        if len(targetLine.split()) < words and len(testLine.split()) < words:
             frame.loc[index, targetLang.name] = targetLine
-            frame.loc[index, testLang.name] = testSent
+            frame.loc[index, testLang.name] = testLine
             index += 1
     print('Creation complete, ', index, ' lines.')
     targetFile.close()
@@ -69,12 +69,13 @@ def loadToyData(vocabSize, words, filename, testLang, targetLang):
             frame.loc[index, targetLang.name] = targetLine
             frame.loc[index, testLang.name] = testLine
             index += 1
+    print(f'Training dataset created from {index} lines')
     dataset = LangDataset(frame, testLang, targetLang, words)
     return dataset
 
 def loadToyTest(vocabSize, words, filename, testLang, targetLang):
     index = 0
-    frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
+    frame = pd.DataFrame(columns = [testLang, targetLang])
     with open(filename, encoding = 'utf8') as file:
         print('Creating test dataset from file {}...'.format(filename))
         for line in file:
@@ -84,15 +85,15 @@ def loadToyTest(vocabSize, words, filename, testLang, targetLang):
             testLine = ' '.join(nltk.word_tokenize(langModel.normalize(sentences[0])))
             targetLine = ' '.join(nltk.word_tokenize(langModel.normalize(sentences[1])))
             if len(targetLine.split()) < words and len(testLine.split()) < words:
-                frame.loc[index, targetLang.name] = targetLine
-                frame.loc[index, testLang.name] = testLine
+                frame.loc[index, targetLang] = targetLine
+                frame.loc[index, testLang] = testLine
                 index += 1
     print('Creation complete.')
     return frame
 
 def loadTestData(vocabSize, words, testFileName, targetFileName, testLang, targetLang):
     index = 0
-    frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
+    frame = pd.DataFrame(columns = [testLang, targetLang])
     targetFile = open(targetFileName)
     testFile = open(testFileName)
     print('Creating training dataset from file {}...'.format(testFileName))
@@ -102,8 +103,8 @@ def loadTestData(vocabSize, words, testFileName, targetFileName, testLang, targe
         targetLine = targetLine.strip('\n')
         testLine = langModel.normalize(testLine.strip('\n'))
         if len(targetLine.split()) < words and len(testLine.split()) < words:
-            frame.loc[index, targetLang.name] = targetLine
-            frame.loc[index, testLang.name] = testLine
+            frame.loc[index, targetLang] = targetLine
+            frame.loc[index, testLang] = testLine
             index += 1
     print('Creation complete.')
     testFile.close()
