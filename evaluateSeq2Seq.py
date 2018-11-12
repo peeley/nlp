@@ -98,8 +98,10 @@ if __name__ == '__main__':
                                          filename, 'eng', 'ipq')
         testBLEU(testData, savedEncoder, savedDecoder, eng, ipq)
         exit()
-    while True:
-        testString = input('\nEnter text to be translated: ')
+    testString = input('\nEnter text to be translated: ')
+    while testString != '':
         testData = [testString]
-        evaluate(savedEncoder, savedDecoder, testData, eng, ipq)
-
+        decoded = evaluate(savedEncoder, savedDecoder, testData, eng, ipq)
+        print('Translated: ', ' '.join(decoded))
+        testString = input('\nEnter text to be translated: ')
+    print('Goodbye!')
