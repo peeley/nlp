@@ -68,7 +68,7 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
             bleuAVG = (sum(bleuScores)/len(bleuScores))
             if len(decodedString) >= 4:
                 print('\nItem: \t#{}/{}'.format(index, testData.shape[0]))
-                print('Test: \t', testLine)
+                print('Test: \t\t', testLine)
                 print('Translated: \t', ' '.join(decodedString))
                 print('Target: \t', targetLine)
                 print('BLEU Score: \t', bleu)

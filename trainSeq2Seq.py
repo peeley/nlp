@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import langModel, seq2seq, torch, random, datetime, dataUtils, json, pickle, argparse
+import langModel, seq2seq, torch, random, datetime, dataUtils, json, pickle, argparse, time
 import torch.nn as nn
 
 parser = argparse.ArgumentParser(description = "Script to train Qalgu translator.")
@@ -13,7 +13,7 @@ parser.add_argument('--layers', type=int, default = 4, help="Default: 4")
 parser.add_argument('--batch', type=int, default = 1, help="Default: 1")
 parser.add_argument('--reverse', type=bool, default = False, help="Default: False")
 parser.add_argument('--lengthScheduling', type=int, default = False, help="Default: False")
-parser.add_argument('--learningRate', type=float, default=.1, help="Default: .1")
+parser.add_argument('--learningRate', type=float, default=.1, help="Default: .05")
 args = parser.parse_args()
 print('Running with following settings: \n', args)
 
@@ -39,12 +39,12 @@ if args.reverse:
     testData, targetData = targetData, testData
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
-trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
-testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
+#trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
+#testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
 
-#trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
-#testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
+trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
+testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, 
                                          batch_size = args.batch, drop_last = True)
 
 cuda = False
@@ -60,7 +60,7 @@ encoder = seq2seq.encoder(testLang.nWords, hiddenSize=args.hSize, numLayers = ar
 decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
 
-loss_fn = nn.NLLLoss(ignore_index = testLang.PAD)
+loss_fn = nn.CrossEntropyLoss(ignore_index = testLang.PAD, reduction = 'sum')
 #encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
 #decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
 encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate)
@@ -96,7 +96,7 @@ for epoch in range(args.epochs):
         decoderOptim.zero_grad()
         
         encoderOutput, encoderHidden = encoder(inputTensor, None)
-        decoderInput = torch.LongTensor([testLang.PAD] * batchSize).to(device)
+        decoderInput = torch.LongTensor([testLang.SOS] * batchSize).to(device)
         decoderHidden = encoderHidden[:args.layers]
 
         teacherForce = random.random() < teacherForceRatio
@@ -112,8 +112,8 @@ for epoch in range(args.epochs):
                 decoderInput = topi.squeeze().detach().view(batchSize)
 
         loss.backward()
-        nn.utils.clip_grad_norm_(decoder.parameters(), 25)
-        nn.utils.clip_grad_norm_(encoder.parameters(), 25)
+        nn.utils.clip_grad_value_(decoder.parameters(), .5)
+        nn.utils.clip_grad_value_(encoder.parameters(), .5)
         encoderOptim.step()
         decoderOptim.step()
         epochLoss += loss
