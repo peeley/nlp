@@ -50,9 +50,10 @@ class Attn(nn.Module):
         self.v = torch.rand(hiddenSize)
         stdv = 1. / math.sqrt(self.v.size(0))
         self.v.data.normal_(mean=0, std = stdv)
+        self.softmax = nn.Softmax(dim = -1)
 
     def score(self, hidden, encoderOutput):
-        energy = nn.functional.tanh(self.attn(torch.cat([hidden, encoderOutput], 2))) # [B*T*2H]->[B*T*H]
+        energy = torch.tanh(self.attn(torch.cat([hidden, encoderOutput], 2))) # [B*T*2H]->[B*T*H]
         energy = energy.transpose(2,1) # [B*H*T]
         v = self.v.repeat(encoderOutput.data.shape[0],1).unsqueeze(1) #[B*1*H]
         energy = torch.bmm(v,energy) # [B*1*T]
@@ -64,7 +65,7 @@ class Attn(nn.Module):
         H = hidden.repeat(seqLengths, 1, 1).transpose(0,1)
         encoderOutputs = encoderOutputs.transpose(0,1) # [B*T*H]
         attnEnergy = self.score(H, encoderOutputs) # compute attention score
-        return nn.functional.softmax(attnEnergy).unsqueeze(1) # normalize with softmax      
+        return self.softmax(attnEnergy).unsqueeze(1) # normalize with softmax      
 
 class bahdanauDecoder(nn.Module):
     def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .3, maxLength = 10, numLayers = 2):
@@ -79,6 +80,7 @@ class bahdanauDecoder(nn.Module):
         self.gru = nn.GRU(hiddenSize*2, hiddenSize, numLayers, dropout=dropoutProb)
         self.out = nn.Linear(hiddenSize, outputSize)
         self.concat = nn.Linear(hiddenSize, outputSize)
+        self.softmax = nn.LogSoftmax(dim = -1)
 
     def forward(self, input, hidden, encoderOutputs):
         batchSize = input.shape[0]
@@ -90,5 +92,5 @@ class bahdanauDecoder(nn.Module):
         rnnIn = torch.cat((embed, context), 2)
         output, hidden = self.gru(rnnIn, hidden)
         output = output.squeeze(0)  # (1,B,V)->(B,V)
-        output = nn.functional.log_softmax(self.out(output))
+        output = self.softmax(self.out(output))
         return output, hidden

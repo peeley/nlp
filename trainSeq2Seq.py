@@ -7,13 +7,13 @@ parser = argparse.ArgumentParser(description = "Script to train Qalgu translator
 parser.add_argument('--size', type=int, default = -1, help="Default: -1")
 parser.add_argument('--epochs', type=int, default = 15, help="Default: 15")
 parser.add_argument('--dataSentenceLength', type=int, default = 15, help="Default: 15")
-parser.add_argument('--maxWords', type=int, default = 50, help="Default: 50")
+parser.add_argument('--maxWords', type=int, default = 100, help="Default: 100")
 parser.add_argument('--hSize', type=int, default = 1024, help="Default: 1024")
 parser.add_argument('--layers', type=int, default = 4, help="Default: 4")
 parser.add_argument('--batch', type=int, default = 1, help="Default: 1")
 parser.add_argument('--reverse', type=bool, default = False, help="Default: False")
 parser.add_argument('--lengthScheduling', type=int, default = False, help="Default: False")
-parser.add_argument('--learningRate', type=float, default=.1, help="Default: .05")
+parser.add_argument('--learningRate', type=float, default=.05, help="Default: .05")
 args = parser.parse_args()
 print('Running with following settings: \n', args)
 
@@ -26,10 +26,8 @@ lengthScheduling = False
 
 testData = 'data/de-en/train.tok.clean.bpe.32000.en'
 targetData = 'data/de-en/train.tok.clean.bpe.32000.de'
-testDataVal = 'data/de-en/train.tok.clean.bpe.32000.en'
-targetDataVal = 'data/de-en/train.tok.clean.bpe.32000.de'
-#testDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
-#targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
+testDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
+targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
 toyData = 'data/de-en/deu-eng/deu.txt'
 
 testLang = langModel.langModel('eng')
@@ -39,12 +37,12 @@ if args.reverse:
     testData, targetData = targetData, testData
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
-#trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
-#testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
+trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
+testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
 
-trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
-testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, 
+#trainingData = dataUtils.loadToyData(args.size, args.dataSentenceLength, toyData, testLang, targetLang)
+#testData = dataUtils.loadToyTest(1000, args.dataSentenceLength, toyData, 'eng', 'ipq') 
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
                                          batch_size = args.batch, drop_last = True)
 
 cuda = False
@@ -54,17 +52,16 @@ if torch.cuda.is_available():
     print('PROCESSING WITH CUDA DEVICE ', device)
 else:
     device = torch.device('cpu')
-    print('PROCESSING WITH CPU\n')
+    print('PROCESSING WITH CPU')
+print('\n')
 
 encoder = seq2seq.encoder(testLang.nWords, hiddenSize=args.hSize, numLayers = args.layers).to(device)
 decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
 
 loss_fn = nn.CrossEntropyLoss(ignore_index = testLang.PAD, reduction = 'sum')
-#encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
-#decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
-encoderOptim = torch.optim.SGD(encoder.parameters(), lr= args.learningRate)
-decoderOptim = torch.optim.SGD(decoder.parameters(), lr= args.learningRate)
+encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.learningRate)
+decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.learningRate)
 
 encoder = nn.DataParallel(encoder)
 decoder = nn.DataParallel(decoder)
@@ -112,8 +109,8 @@ for epoch in range(args.epochs):
                 decoderInput = topi.squeeze().detach().view(batchSize)
 
         loss.backward()
-        nn.utils.clip_grad_value_(decoder.parameters(), .5)
-        nn.utils.clip_grad_value_(encoder.parameters(), .5)
+        nn.utils.clip_grad_norm_(decoder.parameters(), 50)
+        nn.utils.clip_grad_norm_(encoder.parameters(), 50)
         encoderOptim.step()
         decoderOptim.step()
         epochLoss += loss
@@ -148,7 +145,6 @@ torch.save(decoder, 'decoder.pt')
 print('Models saved to disk.\n')
 
 import evaluateSeq2Seq
-
 evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
 print('Final loss: \t', epochLoss.item())
 print('Elapsed time: \t', elapsedTime)
