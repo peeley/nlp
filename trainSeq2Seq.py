@@ -24,11 +24,16 @@ lengthSchedule = {0: args.dataSentenceLength,
                   (args.epochs//1.5): args.dataSentenceLength + 30} 
 lengthScheduling = False
 
+'''
 testData = 'data/de-en/train.tok.clean.bpe.32000.en'
 targetData = 'data/de-en/train.tok.clean.bpe.32000.de'
 testDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
 targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
-toyData = 'data/de-en/deu-eng/deu.txt'
+'''
+testData = 'data/inupiaq/data_eng_train'
+targetData = 'data/inupiaq/data_ipq_train'
+testDataVal = 'data/inupiaq/data_eng_val'
+targetDataVal = 'data/inupiaq/data_ipq_val' 
 
 testLang = langModel.langModel('eng')
 targetLang = langModel.langModel('ipq')
