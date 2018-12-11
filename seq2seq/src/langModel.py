@@ -64,7 +64,7 @@ def tensorFromSentence(lang, sentence, length):
             indices.append(lang.word2idx[word])
         except KeyError as e:
             rareWords[num] = word
-            print('WARNING - Word not in vocabulary: "{}"'.format(word))
+            #print('WARNING - Word not in vocabulary: "{}"'.format(word))
     indices.append(lang.EOS)
     while len(indices) < (length):
         indices.append(lang.PAD)

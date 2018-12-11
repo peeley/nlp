@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description = "Script to train Qalgu translator
 parser.add_argument('--size', type=int, default = -1, help="Default: -1")
 parser.add_argument('--epochs', type=int, default = 15, help="Default: 15")
 parser.add_argument('--dataSentenceLength', type=int, default = 15, help="Default: 15")
-parser.add_argument('--maxWords', type=int, default = 100, help="Default: 100")
+parser.add_argument('--maxWords', type=int, default = 50, help="Default: 50")
 parser.add_argument('--hSize', type=int, default = 1024, help="Default: 1024")
 parser.add_argument('--layers', type=int, default = 4, help="Default: 4")
 parser.add_argument('--batch', type=int, default = 1, help="Default: 1")
@@ -16,7 +16,18 @@ parser.add_argument('--reverse', type=bool, default = False, help="Default: Fals
 parser.add_argument('--lengthScheduling', type=int, default = False, help="Default: False")
 parser.add_argument('--learningRate', type=float, default=.001, help="Default: .001")
 args = parser.parse_args()
-print('Running with following settings: \n', args)
+
+settingsDict = {}
+for arg in vars(args):
+    value = getattr(args,arg)
+    settingsDict[arg] = value
+    print(f'Writing parameter {arg} = {value}')
+with open('src/models/params.json', 'w+') as params:
+    print('\nWriting parameters to disk...')
+    json.dump(settingsDict, params)
+    print('Saved parameters to disk.')
+
+from src import evaluateSeq2Seq
 
 # Change length of sentences based on how long we've been training
 lengthSchedule = {0: args.dataSentenceLength,
@@ -31,10 +42,10 @@ targetData = 'data/de-en/train.tok.clean.bpe.32000.de'
 testDataVal = 'data/de-en/newstest2011.tok.bpe.32000.en'
 targetDataVal = 'data/de-en/newstest2011.tok.bpe.32000.de'
 '''
-testData = 'data/inupiaq/data_eng_train'
-targetData = 'data/inupiaq/data_ipq_train_bpe'
-testDataVal = 'data/inupiaq/data_eng_val'
-targetDataVal = 'data/inupiaq/data_ipq_val_bpe' 
+testDataFile = 'data/inupiaq/data_eng_train'
+targetDataFile = 'data/inupiaq/data_ipq_train_bpe'
+testDataValFile = 'data/inupiaq/data_eng_val'
+targetDataValFile = 'data/inupiaq/data_ipq_val_bpe' 
 
 testLang = langModel.langModel('eng')
 targetLang = langModel.langModel('ipq')
@@ -43,8 +54,9 @@ if args.reverse:
     testData, targetData = targetData, testData
     testDataVal, targetDataVal = targetDataVal, testDataVal
 
-trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testData, targetData, testLang, targetLang)
-testData = dataUtils.loadTestData(500, args.dataSentenceLength, testDataVal, targetDataVal, testLang.name, targetLang.name)
+trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testDataFile, targetDataFile, testLang, targetLang)
+#testData = dataUtils.loadTestData(50, args.dataSentenceLength, testDataValFile, targetDataValFile, testLang.name, targetLang.name)
+testData = dataUtils.loadTestData(20, args.dataSentenceLength, testDataFile, targetDataFile, testLang.name, targetLang.name)
 
 dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, 
                                          batch_size = args.batch, drop_last = True)
@@ -78,7 +90,7 @@ for epoch in range(args.epochs):
             print("Increasing sentence length")
             args.dataSentenceLength = lengthSchedule[epoch]
             trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, 
-                                                      testData, targetData, testLang, targetLang)
+                                                      testDataFile, targetDataFile, testLang, targetLang)
             dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, 
                                                      num_workers = 0, batch_size = args.batch)
             print("Created new dataset")
@@ -117,36 +129,25 @@ for epoch in range(args.epochs):
         epochLoss += loss
 
         stepTime = datetime.datetime.now() - stepStartTime
-    epochLoss = epochLoss / args.size
+    epochLoss = epochLoss.item() / args.size
     epochTime = datetime.datetime.now() - epochTime
-    print('Epoch: {}\t Loss: {:.8} \tEpoch Time: {}\tStep Time: {}'.format(epoch+1, epochLoss, epochTime, stepTime))
+    bleu = evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang, False)
+
+    print(f"Epoch: {epoch+1}\tLoss: {round(epochLoss, 8)}\tEpoch Time: {epochTime}\tStep Time: {stepTime}\tBLEU: {bleu*100}")
 endTime = datetime.datetime.now()
 elapsedTime = endTime - startTime
-
-settingsDict = {}
-for arg in vars(args):
-    value = getattr(args,arg)
-    settingsDict[arg] = value
-    print('Writing parameter {} with value {}'.format(arg, value))
-
-with open('src/params.json', 'w+') as params:
-    print('\nWriting parameters to disk...')
-    json.dump(settingsDict, params)
-    print('Saved parameters to disk.')
-
 print('Writing language models to disk...')
-with open(f"src/{testLang.name}.p", 'wb') as engFile:
+with open(f"src/models/{testLang.name}.p", 'wb') as engFile:
     pickle.dump(testLang, engFile)
-with open(f"src/{targetLang.name}.p", 'wb') as ipqFile:
+with open(f"src/models/{targetLang.name}.p", 'wb') as ipqFile:
     pickle.dump(targetLang, ipqFile)
 print('Language models saved to disk.')
 print('Writing models to disk...')
-torch.save(encoder, 'src/encoder.pt')
-torch.save(decoder, 'src/decoder.pt')
+torch.save(encoder, 'src/models/encoder.pt')
+torch.save(decoder, 'src/models/decoder.pt')
 print('Models saved to disk.\n')
 
-from src import evaluateSeq2Seq
 
-evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang)
-print('Final loss: \t', epochLoss.item())
+evaluateSeq2Seq.testBLEU(testData, encoder, decoder, testLang, targetLang, True)
+print('Final loss: \t', epochLoss)
 print('Elapsed time: \t', elapsedTime)

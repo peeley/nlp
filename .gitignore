@@ -1,4 +1,4 @@
 __pycache__
 keypair.pem
-seq2seq/data/inupiaq/subword-nmt
-seq2seq/data/de-en
+seq2seq/data/
+seq2seq/src/models

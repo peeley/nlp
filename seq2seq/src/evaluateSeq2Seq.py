@@ -4,7 +4,7 @@ import torch, json, pickle, sys
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from src import langModel, seq2seq, dataUtils
 
-with open('src/params.json') as paramsFile:
+with open('src/models/params.json') as paramsFile:
     params = json.load(paramsFile)
 hSize    = params['hSize']
 maxWords = params['maxWords']
@@ -13,10 +13,8 @@ length   = params['dataSentenceLength']
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
-    cuda = True
 else:
     device = torch.device('cpu')
-    cuda = False
 
 def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
     with torch.no_grad():
@@ -45,13 +43,12 @@ def evaluate(encoder, decoder, rawString, testLang, targetLang, train = False):
                     decoderInput = torch.tensor([topi.squeeze().detach()]).to(device)
     return decodedWords
 
-def testBLEU(testData, encoder, decoder, testLang, targetLang):
-    encoder.to(device)
-    decoder.to(device)
+def testBLEU(testData, encoder, decoder, testLang, targetLang, verbose):
     with torch.no_grad():
         bleuAVG = 0
         bleuScores = []
-        print('--- TESTING BLEU SCORES ---')
+        if verbose:
+            print('--- TESTING BLEU SCORES ---')
         for index, line in testData.iterrows():
             testLine    = line[testLang.name]
             targetLine  = langModel.normalize(line[targetLang.name])
@@ -66,21 +63,19 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang):
                 bleu = sentence_bleu([targetLine.split()], decodedString) 
             bleuScores.append(bleu)
             bleuAVG = (sum(bleuScores)/len(bleuScores))
-            if len(decodedString) >= 4:
-                print('\nItem: \t#{}/{}'.format(index, testData.shape[0]))
+            if len(decodedString) >= 4 and verbose:
+                print(f'\nItem: \t#{index}/{testData.shape[0]}')
                 print('Test: \t\t', testLine)
                 print('Translated: \t', ' '.join(decodedString))
                 print('Target: \t', targetLine)
-                print('BLEU Score: \t', bleu)
+                print(f'BLEU Score: \t{bleu} ({bleu*100})')
                 print('BLEU Average: \t{:.8} ({:.8})\n'.format(bleuAVG, bleuAVG * 100))
-        print('\nFinal BLEU:\t{:.8} ({:.8})\n'.format(bleuAVG, bleuAVG * 100))
+        if verbose:
+            print('\nFinal BLEU:\t{:.8} ({:.8})\n'.format(bleuAVG, bleuAVG * 100))
+    return bleuAVG
 
 
 if __name__ == '__main__':
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-    else:
-        device = torch.device('cpu')
     print('\nEvaluating with device: ', device)
     print('Loading saved models...')
     savedEncoder = torch.load('encoder.pt', map_location = device)
@@ -96,7 +91,7 @@ if __name__ == '__main__':
         filename = 'data/de-en/deu-eng/deu.txt'
         testData = dataUtils.loadToyTest(500, params['dataSentenceLength'], 
                                          filename, 'eng', 'ipq')
-        testBLEU(testData, savedEncoder, savedDecoder, eng, ipq)
+        testBLEU(testData, savedEncoder, savedDecoder, eng, ipq, True)
         exit()
     testString = input('\nEnter text to be translated: ')
     while testString != '':
