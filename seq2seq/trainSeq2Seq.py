@@ -56,9 +56,9 @@ if args.reverse:
 
 trainingData = dataUtils.loadTrainingData(args.size, args.dataSentenceLength, testDataFile, targetDataFile, testLang, targetLang)
 #testData = dataUtils.loadTestData(50, args.dataSentenceLength, testDataValFile, targetDataValFile, testLang.name, targetLang.name)
-testData = dataUtils.loadTestData(20, args.dataSentenceLength, testDataFile, targetDataFile, testLang.name, targetLang.name)
+testData = dataUtils.loadTestData(40, args.dataSentenceLength, testDataFile, targetDataFile, testLang.name, targetLang.name)
 
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 0, 
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
                                          batch_size = args.batch, drop_last = True)
 
 cuda = False
