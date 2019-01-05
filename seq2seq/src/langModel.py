@@ -56,6 +56,11 @@ class langModel:
         else:
             self.word2count[word] += 1
 
+# converts a raw string into a pytorch tensor
+# lang : LangModel containing indices of words in sentence
+# sentence : raw string of sentence to convert
+# length : maximum length of output, used for padding to allow for batching
+# returns a tensor and dict of words not found in lang with location in sentence.
 def tensorFromSentence(lang, sentence, length):
     indices = []
     rareWords = {}
@@ -64,7 +69,6 @@ def tensorFromSentence(lang, sentence, length):
             indices.append(lang.word2idx[word])
         except KeyError as e:
             rareWords[num] = word
-            #print('WARNING - Word not in vocabulary: "{}"'.format(word))
     indices.append(lang.EOS)
     while len(indices) < (length):
         indices.append(lang.PAD)

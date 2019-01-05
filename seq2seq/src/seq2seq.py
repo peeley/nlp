@@ -20,28 +20,6 @@ class encoder(nn.Module):
         output = output[:, :, :self.hiddenSize] + output[:, :, self.hiddenSize:]
         return output, hidden
 
-class decoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .3, maxLength=10, numLayers = 2):
-        super(decoder, self).__init__()
-        self.hiddenSize = hiddenSize
-        self.outputSize = outputSize
-        self.maxLength = maxLength
-        self.numLayers = numLayers
-        self.dropout = nn.Dropout(dropoutProb)
-        self.embed = nn.Embedding(self.outputSize, self.hiddenSize)
-        self.lstm = nn.LSTM(self.hiddenSize, self.hiddenSize, num_layers = self.numLayers*2, batch_first = True)
-        self.linear = nn.Linear(self.hiddenSize, self.outputSize)
-        self.softmax = nn.LogSoftmax(dim = 2)
-
-    def forward(self, input, hidden, out):
-        batchSize = input.shape[0]
-        embed = self.embed(input).view(batchSize,1, self.hiddenSize)
-        out = nn.functional.relu(embed)
-        output, hidden = self.lstm(out, hidden)
-        output = self.linear(output[:])
-        output = self.softmax(output)
-        return output, hidden
-
 class Attn(nn.Module):
     def __init__(self, hiddenSize):
         super(Attn, self).__init__()

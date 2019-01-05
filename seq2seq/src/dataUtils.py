@@ -8,7 +8,7 @@ n_letters = len(all_letters)
 nltk.download('punkt')
 
 class LangDataset(torch.utils.data.Dataset):
-    def __init__(self, frame, testLang, targetLang, length, transform = None):
+    def __init__(self, frame, testLang, targetLang, length):
         self.frame = frame
         self.testLang = testLang
         self.targetLang = targetLang
@@ -25,13 +25,12 @@ class LangDataset(torch.utils.data.Dataset):
                                                             self.length)
         return (testTensor, targetTensor, testLine, targetLine)
 
-def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, targetLang):
+def loadData(vocabSize, words, testFilename, targetFilename, testLang, targetLang, train):
     print('Creating dataset from file {}...'.format(testFilename))
     frame = pd.DataFrame(columns = [testLang.name, targetLang.name])
     index = 0
     testFile = open(testFilename, encoding = 'utf8')
     targetFile = open(targetFilename, encoding = 'utf8')
-    print('Creating language models...')
     for testLine, targetLine in zip(testFile, targetFile):
         if index == vocabSize:
             break
@@ -39,15 +38,17 @@ def loadTrainingData(vocabSize, words, testFilename, targetFilename, testLang, t
         testLine = testLine.strip('\n')
         testLine = ' '.join(nltk.word_tokenize(langModel.normalize(testLine)))
         targetLine = ' '.join(nltk.word_tokenize(langModel.normalize(targetLine)))
-        testLang.addSentence(testLine)
-        targetLang.addSentence(targetLine)
+        if train:
+            testLang.addSentence(testLine)
+            targetLang.addSentence(targetLine)
         if len(targetLine.split()) < words and len(testLine.split()) < words:
             frame.loc[index, targetLang.name] = targetLine
             frame.loc[index, testLang.name] = testLine
             index += 1
     print(f'Creation complete, {index} lines.')
-    print(f'Language {testLang.name} created with {testLang.nWords} words.')
-    print(f'Language {targetLang.name} created with {targetLang.nWords} words.')
+    if train:
+        print(f'Language {testLang.name} created with {testLang.nWords} words.')
+        print(f'Language {targetLang.name} created with {targetLang.nWords} words.')
     targetFile.close()
     testFile.close()
     dataset = LangDataset(frame, testLang, targetLang, words)
@@ -90,26 +91,6 @@ def loadToyTest(vocabSize, words, filename, testLang, targetLang):
                 frame.loc[index, testLang] = testLine
                 index += 1
     print('Creation complete.')
-    return frame
-
-def loadTestData(vocabSize, words, testFileName, targetFileName, testLang, targetLang):
-    index = 0
-    frame = pd.DataFrame(columns = [testLang, targetLang])
-    targetFile = open(targetFileName)
-    testFile = open(testFileName)
-    print('Creating training dataset from file {}...'.format(testFileName))
-    for testLine, targetLine in zip(testFile, targetFile):
-        if index == vocabSize:
-            break
-        targetLine = targetLine.strip('\n')
-        testLine = langModel.normalize(testLine.strip('\n'))
-        if len(targetLine.split()) < words and len(testLine.split()) < words:
-            frame.loc[index, targetLang] = targetLine
-            frame.loc[index, testLang] = testLine
-            index += 1
-    print('Creation complete.')
-    testFile.close()
-    targetFile.close()
     return frame
 
 def splitData(testFilename, targetFilename):
