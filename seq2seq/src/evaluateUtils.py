@@ -4,22 +4,19 @@ import torch, json, pickle, sys
 from nltk.translate.bleu_score import sentence_bleu
 from src import langModel, seq2seq, dataUtils
 
-with open('src/models/params.json') as paramsFile:
-    params = json.load(paramsFile)
-hSize    = params['hSize']
-maxWords = params['maxWords']
-layers   = params['layers']
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-if torch.cuda.is_available():
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
-
-def evaluate(encoder, decoder, inputTensor, testLang, targetLang):
+# takes in raw string and of source language and returns array of words translated to target language
+# encoder, decoder : encoder and decoder objects as defined in seq2seq
+# inputTensor : PyTorch tensor of word indices or raw string to be converted to tensor
+# sourceLang, targetLang : language models as defined in langModel
+def evaluate(encoder, decoder, inputTensor, sourceLang, targetLang):
     rareWords = {}
+    layers = encoder.numLayers
+    maxWords = decoder.maxLength
     with torch.no_grad():
         if type(inputTensor) == str:
-            inputTensor, rareWords = langModel.tensorFromSentence(testLang, inputTensor, maxWords)
+            inputTensor, rareWords = langModel.tensorFromSentence(sourceLang, inputTensor, maxWords)
         inputSentence = inputTensor.view(-1,1,1).to(device)
 
         encoderOutputs, encoderHidden = encoder(inputSentence, None)
@@ -34,7 +31,7 @@ def evaluate(encoder, decoder, inputTensor, testLang, targetLang):
                 decoderOutput, decoderHidden = decoder(decoderInput, decoderHidden, encoderOutputs)
                 decoderOutput = decoderOutput.view(1, -1)
                 topv, topi = decoderOutput.data.topk(1)
-                if topi.item() == testLang.EOS:
+                if topi.item() == sourceLang.EOS:
                     decodedWords.append('/end/')
                     break
                 else:
@@ -45,9 +42,9 @@ def evaluate(encoder, decoder, inputTensor, testLang, targetLang):
 # tests encoder/decoder accuracy with BLEU metric
 # testData : torch DataLoader object
 # encoder, decoder : self-written encoder/decoder objects as defined in seq2seq
-# testLang, targetLang : LangModels of source and target languages
+# sourceLang, targetLang : LangModels of source and target languages
 # verbose : boolean, allows for detailed print messages
-def testBLEU(testData, encoder, decoder, testLang, targetLang, verbose):
+def testBLEU(testData, encoder, decoder, sourceLang, targetLang, verbose):
     with torch.no_grad():
         bleuAVG = 0
         bleuScores = []
@@ -56,12 +53,12 @@ def testBLEU(testData, encoder, decoder, testLang, targetLang, verbose):
         for index, data in enumerate(testData):
             inputTensor, targetTensor = data[0].transpose(0,1).to(device), data[1].transpose(0,1).to(device)
             testLine, targetLine = data[2][0], data[3][0]
-            decodedString = evaluate(encoder, decoder, inputTensor, testLang, targetLang)
+            decodedString = evaluate(encoder, decoder, inputTensor, sourceLang, targetLang)
             if '' in decodedString:
                 decodedString = list(filter(None, decodedString))
             if '/end/' in decodedString: 
                 decodedString.remove('/end/')
-            if decodedString == None or decodedString == -1:
+            if decodedString == None:
                 bleu = 0
             else:
                 bleu = sentence_bleu([targetLine.split()], decodedString) 

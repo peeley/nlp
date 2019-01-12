@@ -16,7 +16,9 @@ class encoder(nn.Module):
         seqLengths = input.shape[0]
         embed = self.embedding(input)
         embed = embed.view(seqLengths, batchSize, self.hiddenSize)
-        output, hidden = self.gru(embed, hidden)
+        packed = nn.utils.rnn.pack_padded_sequence(embed, [seqLengths] * batchSize)
+        output, hidden = self.gru(packed, hidden)
+        output, _ = nn.utils.rnn.pad_packed_sequence(output)
         output = output[:, :, :self.hiddenSize] + output[:, :, self.hiddenSize:]
         return output, hidden
 
@@ -59,7 +61,6 @@ class bahdanauDecoder(nn.Module):
         self.attn = Attn(self.hiddenSize)
         self.gru = nn.GRU(hiddenSize*2, hiddenSize, numLayers, dropout=dropoutProb)
         self.out = nn.Linear(hiddenSize, outputSize)
-        self.concat = nn.Linear(hiddenSize, outputSize)
         self.softmax = nn.LogSoftmax(dim = -1)
 
     def forward(self, input, hidden, encoderOutputs):
