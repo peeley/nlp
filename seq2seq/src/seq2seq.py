@@ -50,7 +50,7 @@ class Attn(nn.Module):
         return self.softmax(attnEnergy).unsqueeze(1) # normalize with softmax      
 
 class bahdanauDecoder(nn.Module):
-    def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .3, maxLength = 10, numLayers = 2):
+    def __init__(self, outputSize, hiddenSize = 300, dropoutProb = .1, maxLength = 10, numLayers = 2):
         super(bahdanauDecoder, self).__init__()
         self.outputSize = outputSize
         self.hiddenSize = hiddenSize

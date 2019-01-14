@@ -52,7 +52,7 @@ def testBLEU(testData, encoder, decoder, sourceLang, targetLang, verbose):
             print('--- TESTING BLEU SCORES ---')
         for index, data in enumerate(testData):
             inputTensor, targetTensor = data[0].transpose(0,1).to(device), data[1].transpose(0,1).to(device)
-            testLine, targetLine = data[2][0], data[3][0]
+            sourceLine, targetLine = data[2][0], data[3][0]
             decodedString = evaluate(encoder, decoder, inputTensor, sourceLang, targetLang)
             if '' in decodedString:
                 decodedString = list(filter(None, decodedString))
@@ -66,8 +66,8 @@ def testBLEU(testData, encoder, decoder, sourceLang, targetLang, verbose):
             bleuAVG = sum(bleuScores)/len(bleuScores)
             if len(decodedString) >= 4 and verbose:
                 print(f'\nItem: \t#{index}/{len(testData)}')
-                print(f'Test: \t\t{testLine}')
-                print('Translated: \t', ' '.join(decodedString))
+                print(f'Test: \t\t{sourceLine}')
+                print('Translated:\t', ' '.join(decodedString))
                 print(f'Target: \t{targetLine}')
                 print(f'BLEU Score: \t{bleu} ({bleu*100:.8f})')
                 print(f'BLEU Average: \t{bleuAVG:.8f} ({(bleuAVG*100):.8f})\n')

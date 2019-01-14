@@ -15,32 +15,32 @@ parser.add_argument('--lr', type=float, default=.001, help="Default: .001")
 args = parser.parse_args()
 
 
-sourceDataFile = 'data/inupiaq/data_eng_train'
-targetDataFile = 'data/inupiaq/data_ipq_train_bpe'
-sourceDataValFile = 'data/inupiaq/data_eng_val'
-targetDataValFile = 'data/inupiaq/data_ipq_val_bpe' 
+sourceDataTrainingFile = 'data/de-en/newstest2016.tok.bpe.32000.en'#'data/inupiaq/data_eng_train'
+targetDataTrainingFile = 'data/de-en/newstest2016.tok.bpe.32000.de'#'data/inupiaq/data_ipq_train_bpe'
+sourceDataValFile = 'data/de-en/newstest2015.tok.bpe.32000.en'#'data/inupiaq/data_eng_val'
+targetDataValFile = 'data/de-en/newstest2015.tok.bpe.32000.de'#'data/inupiaq/data_ipq_val_bpe' 
 
 sourceLang = langModel.langModel('eng')
 targetLang = langModel.langModel('ipq')
 
-trainingData = dataUtils.loadData(args.size, args.maxWords, sourceDataFile, targetDataFile, sourceLang, targetLang, train=True)
-testData = dataUtils.loadData(150, args.maxWords, sourceDataValFile, targetDataValFile, sourceLang, targetLang, train=False)
-dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, 
-                                         batch_size = args.batch, drop_last = True)
+trainingData = dataUtils.loadData(args.size, args.maxWords, sourceDataTrainingFile, targetDataTrainingFile, sourceLang, targetLang, train=True)
+testData = dataUtils.loadData(100, args.maxWords, sourceDataValFile, targetDataValFile, sourceLang, targetLang, train=False)
+dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, batch_size = args.batch)
 testLoader = torch.utils.data.DataLoader(testData, shuffle = True, num_workers = 4, batch_size = 1)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Processing with device {device}.\n')
+teacherForceRatio = .5
+checkpointInterval = 10
+decoderLearnRatio = 5.0
 
 encoder = seq2seq.encoder(sourceLang.nWords, hiddenSize=args.hSize, numLayers = args.layers).to(device)
 decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
                               maxLength=args.maxWords, numLayers = args.layers).to(device)
-loss_fn = nn.CrossEntropyLoss(ignore_index = sourceLang.PAD, reduction = 'sum')
+loss_fn = nn.CrossEntropyLoss(ignore_index = sourceLang.PAD)
 encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.lr)
-decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.lr)
+decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.lr * decoderLearnRatio)
 
-teacherForceRatio = .5
-checkpointInterval = 10
 
 startTime = datetime.datetime.now()
 for epoch in range(args.epochs):
@@ -81,7 +81,7 @@ for epoch in range(args.epochs):
         epochLoss += loss.item()
 
         stepTime = datetime.datetime.now() - stepStartTime
-    epochLoss = epochLoss / args.size
+    epochLoss = epochLoss / len(trainingData)
     epochTime = datetime.datetime.now() - epochTime
     bleu = evaluateUtils.testBLEU(testLoader, encoder, decoder, sourceLang, targetLang, False)
     print(f"Epoch: {epoch+1}\tLoss: {epochLoss:.5f}\tEpoch Time: {epochTime}\tStep Time: {stepTime}\tBLEU: {bleu*100:.5f}")
@@ -92,16 +92,6 @@ for epoch in range(args.epochs):
 
 endTime = datetime.datetime.now()
 elapsedTime = endTime - startTime
-# Save hyperparameters for loading models to production
-settingsDict = {}
-for arg in vars(args):
-    value = getattr(args,arg)
-    settingsDict[arg] = value
-    print(f'Writing parameter {arg} = {value}')
-with open('src/models/params.json', 'w+') as params:
-    print('\nWriting parameters to disk...')
-    json.dump(settingsDict, params)
-    print('Saved parameters to disk.')
 # Save language models
 print('Writing language models to disk...')
 with open(f"src/models/{sourceLang.name}.p", 'wb') as engFile:

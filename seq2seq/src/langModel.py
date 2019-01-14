@@ -44,7 +44,7 @@ class langModel:
         print('Finished embedding!')
     
     def addSentence(self, string):
-        for word in string.split(' '):
+        for word in string.split():
             self.addWord(word)
 
     def addWord(self, word):
@@ -64,7 +64,7 @@ class langModel:
 def tensorFromSentence(lang, sentence, length):
     indices = []
     rareWords = {}
-    for num, word in enumerate(sentence.split(' ')):
+    for num, word in enumerate(sentence.split()):
         try:
             indices.append(lang.word2idx[word])
         except KeyError as e:
