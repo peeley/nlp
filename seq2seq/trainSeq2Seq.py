@@ -15,16 +15,26 @@ parser.add_argument('--lr', type=float, default=.001, help="Default: .001")
 args = parser.parse_args()
 
 
-sourceDataTrainingFile = 'data/de-en/newstest2016.tok.bpe.32000.en'#'data/inupiaq/data_eng_train'
-targetDataTrainingFile = 'data/de-en/newstest2016.tok.bpe.32000.de'#'data/inupiaq/data_ipq_train_bpe'
-sourceDataValFile = 'data/de-en/newstest2015.tok.bpe.32000.en'#'data/inupiaq/data_eng_val'
-targetDataValFile = 'data/de-en/newstest2015.tok.bpe.32000.de'#'data/inupiaq/data_ipq_val_bpe' 
+sourceDataTrainingFile = 'data/inupiaq/data_eng_train'
+targetDataTrainingFile = 'data/inupiaq/data_ipq_train_bpe'
+sourceDataValFile = 'data/inupiaq/data_eng_val'
+targetDataValFile = 'data/inupiaq/data_ipq_val_bpe' 
 
-sourceLang = langModel.langModel('eng')
-targetLang = langModel.langModel('ipq')
+try:
+    print('Loading saved language models.')
+    with open('src/models/source.p', 'rb') as sourcePickle:
+        sourceLang = pickle.load(sourcePickle)
+    with open('src/models/target.p', 'rb') as targetPickle:
+        targetLang = pickle.load(targetPickle)
+except:
+    print('No language models found, creating new models.')
+    sourceLang = langModel.LangModel('eng')
+    targetLang = langModel.LangModel('ipq')
+    langModel.constructModels('data/inupiaq/data_eng', 'data/inupiaq/data_ipq', sourceLang, targetLang)
 
-trainingData = dataUtils.loadData(args.size, args.maxWords, sourceDataTrainingFile, targetDataTrainingFile, sourceLang, targetLang, train=True)
-testData = dataUtils.loadData(100, args.maxWords, sourceDataValFile, targetDataValFile, sourceLang, targetLang, train=False)
+trainingData = dataUtils.loadData(args.size, args.maxWords, sourceDataTrainingFile, 
+        targetDataTrainingFile, sourceLang, targetLang)
+testData = dataUtils.loadData(100, args.maxWords, sourceDataValFile, targetDataValFile, sourceLang, targetLang)
 dataLoader = torch.utils.data.DataLoader(trainingData, shuffle = True, num_workers = 4, batch_size = args.batch)
 testLoader = torch.utils.data.DataLoader(testData, shuffle = True, num_workers = 4, batch_size = 1)
 
@@ -92,13 +102,6 @@ for epoch in range(args.epochs):
 
 endTime = datetime.datetime.now()
 elapsedTime = endTime - startTime
-# Save language models
-print('Writing language models to disk...')
-with open(f"src/models/{sourceLang.name}.p", 'wb') as engFile:
-    pickle.dump(sourceLang, engFile)
-with open(f"src/models/{targetLang.name}.p", 'wb') as ipqFile:
-    pickle.dump(targetLang, ipqFile)
-print('Language models saved to disk.')
 print('Writing models to disk...')
 torch.save(encoder, 'src/models/encoder.pt')
 torch.save(decoder, 'src/models/decoder.pt')

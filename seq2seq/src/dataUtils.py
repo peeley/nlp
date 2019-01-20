@@ -18,8 +18,8 @@ class LangDataset(torch.utils.data.Dataset):
         return len(self.frame)
 
     def __getitem__(self, idx):
-        sourceLine   = self.frame.loc[idx, self.sourceLang.name]
-        targetLine = self.frame.loc[idx, self.targetLang.name]
+        sourceLine   = self.frame.loc[idx, 'source']
+        targetLine = self.frame.loc[idx, 'target']
         testTensor, targetTensor = langModel.tensorFromPair(self.sourceLang, self.targetLang, 
                                                             sourceLine, targetLine,
                                                             self.length)
@@ -31,10 +31,10 @@ class LangDataset(torch.utils.data.Dataset):
 # sourceFilename, targetFilename : filenames of source and target language translations
 # sourceLang, targetLang : language models to construct as defined in langModel
 # train : boolean, true if creating training dataset and false otherwise
-def loadData(vocabSize, words, sourceFilename, targetFilename, sourceLang, targetLang, train):
+def loadData(vocabSize, words, sourceFilename, targetFilename, sourceLang, targetLang):
     print('Creating dataset from file {}...'.format(sourceFilename))
     index = 0
-    frame = pd.DataFrame(columns = [sourceLang.name, targetLang.name])
+    frame = pd.DataFrame(columns = ['source', 'target'])
     sourceFile = open(sourceFilename, encoding = 'utf8')
     targetFile = open(targetFilename, encoding = 'utf8')
     for sourceLine, targetLine in zip(sourceFile, targetFile):
@@ -44,17 +44,11 @@ def loadData(vocabSize, words, sourceFilename, targetFilename, sourceLang, targe
         sourceLine = sourceLine.strip('\n')
         sourceLine = ' '.join(nltk.word_tokenize(langModel.normalize(sourceLine)))
         targetLine = langModel.normalize(targetLine)
-        if train:
-            sourceLang.addSentence(sourceLine)
-            targetLang.addSentence(targetLine)
         if len(targetLine.split()) < words and len(sourceLine.split()) < words:
-            frame.loc[index, targetLang.name] = targetLine
-            frame.loc[index, sourceLang.name] = sourceLine
+            frame.loc[index, 'source'] = targetLine
+            frame.loc[index, 'target'] = sourceLine
             index += 1
     print(f'Creation complete, {index} lines.')
-    if train:
-        print(f'Language {sourceLang.name} created with {sourceLang.nWords} words.')
-        print(f'Language {targetLang.name} created with {targetLang.nWords} words.')
     targetFile.close()
     sourceFile.close()
     dataset = LangDataset(frame, sourceLang, targetLang, words)
@@ -99,6 +93,9 @@ def loadToyTest(vocabSize, words, filename, sourceLang, targetLang):
     print('Creation complete.')
     return frame
 
+# splits data into 97% train, 3% validation, 3% test
+# sourceFilename : string of name of file with source language data
+# targetFilename : string of name of file with target language data
 def splitData(sourceFilename, targetFilename):
     engFile = open(sourceFilename, 'r')
     ipqFile = open(targetFilename, 'r')
@@ -124,13 +121,6 @@ def splitData(sourceFilename, targetFilename):
     engTrainingFile.close() ; ipqTrainingFile.close()
     engValFile.close()  ; ipqValFile.close()
     engTestFile.close() ; ipqTestFile.close()
-'''
-def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-        and c in all_letters
-    )
-'''
+
 if __name__ == '__main__':
     splitData('data/inupiaq/data_eng', 'data/inupiaq/data_ipq')

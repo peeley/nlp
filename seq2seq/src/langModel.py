@@ -1,7 +1,7 @@
-import torch, re, pickle
+import torch, re, pickle, nltk, pickle
 import numpy as np
 
-class langModel:
+class LangModel:
     def __init__(self, name):
         self.name = name
         self.word2idx = {0:'/pad/', '/start/': 1, '/end/':2}
@@ -79,6 +79,26 @@ def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length)
     input = tensorFromSentence(inputLang, inputSentence, length)[0]
     target = tensorFromSentence(outputLang, outputSentence, length)[0]
     return input, target
+
+def constructModels(sourceData, targetData, sourceLang, targetLang):
+    sourceFile = open(sourceData, 'r', encoding='utf8')
+    targetFile = open(targetData, 'r', encoding='utf8')
+    for sourceLine, targetLine in zip(sourceFile, targetFile):
+        sourceLine, targetLine = sourceLine.strip('\n'), targetLine.strip('\n')
+        sourceLine = ' '.join(nltk.word_tokenize(normalize(sourceLine)))
+        targetLine = normalize(targetLine)
+        sourceLang.addSentence(sourceLine)
+        targetLang.addSentence(targetLine)
+    with(open(f"src/models/source.p", 'wb')) as sourcePickle:
+        pickle.dump(sourceLang, sourcePickle)
+    with(open(f"src/models/target.p", 'wb')) as targetPickle:
+        pickle.dump(targetLang, targetPickle)
+    print('Created language models:')
+    print(f'{sourceLang.name} language has {sourceLang.nWords} words')
+    print(f'{targetLang.name} language has {targetLang.nWords} words')
+    sourceFile.close()
+    targetFile.close()
+
 
 def normalize(s):
     s = str(s)
