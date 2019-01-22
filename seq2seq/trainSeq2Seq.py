@@ -42,7 +42,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Processing with device {device}.\n')
 teacherForceRatio = .5
 checkpointInterval = 10
-decoderLearnRatio = 5.0
+decoderLearnRatio = 3.0
 
 encoder = seq2seq.encoder(sourceLang.nWords, hiddenSize=args.hSize, numLayers = args.layers).to(device)
 decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize, 
@@ -50,7 +50,6 @@ decoder = seq2seq.bahdanauDecoder(targetLang.nWords, hiddenSize=args.hSize,
 loss_fn = nn.CrossEntropyLoss(ignore_index = sourceLang.PAD)
 encoderOptim = torch.optim.Adam(encoder.parameters(), lr= args.lr)
 decoderOptim = torch.optim.Adam(decoder.parameters(), lr= args.lr * decoderLearnRatio)
-
 
 startTime = datetime.datetime.now()
 for epoch in range(args.epochs):
@@ -84,8 +83,8 @@ for epoch in range(args.epochs):
                 decoderInput = topi.squeeze().detach().view(batchSize)
 
         loss.backward()
-        nn.utils.clip_grad_norm_(decoder.parameters(), 50)
-        nn.utils.clip_grad_norm_(encoder.parameters(), 50)
+        nn.utils.clip_grad_norm_(decoder.parameters(), 40)
+        nn.utils.clip_grad_norm_(encoder.parameters(), 40)
         encoderOptim.step()
         decoderOptim.step()
         epochLoss += loss.item()
