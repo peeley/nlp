@@ -67,12 +67,12 @@ def tensorFromSentence(lang, sentence, length):
     for num, word in enumerate(sentence.split()):
         try:
             indices.append(lang.word2idx[word])
-        except KeyError as e:
+        except KeyError:
             rareWords[num] = word
     indices.append(lang.EOS)
     while len(indices) < (length):
         indices.append(lang.PAD)
-    indices = torch.tensor(indices, dtype = torch.long).view(-1, 1)
+    indices = torch.Tensor(indices, dtype = torch.long).view(-1, 1)
     return indices, rareWords
 
 def tensorFromPair(inputLang, outputLang, inputSentence, outputSentence, length):
